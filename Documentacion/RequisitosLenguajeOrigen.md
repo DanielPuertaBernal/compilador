@@ -172,3 +172,40 @@ clase Calculadora
   fin_funcion
 fin_clase
 ```
+
+---
+
+## 5. Tabla de traducción a TypeScript
+
+Cada constructo del lenguaje fuente tiene una traducción directa y natural a TypeScript.
+Los tipos explícitos de la fuente se conservan en el destino aprovechando el sistema de
+tipos de TypeScript (*type erasure* no aplica aquí — a diferencia de JavaScript, TypeScript
+mantiene y valida los tipos en tiempo de compilación).
+
+| Constructo fuente | Traducción TypeScript |
+|---|---|
+| `clase Animal` | `class Animal {` |
+| `extiende Animal` | `extends Animal` |
+| `publico` / `privado` | `public` / `private` |
+| `este.nombre` | `this.nombre` |
+| `nuevo Animal("León", 5)` | `new Animal("León", 5)` |
+| `funcion f(a: entero): entero` | `function f(a: number): number {` |
+| `fin_funcion` / `fin_clase` | `}` |
+| `var x: entero = 5` | `let x: number = 5` |
+| `var x: Animal` | `let x: Animal` |
+| `si cond entonces … fin_si` | `if (cond) { … }` |
+| `sino` | `} else {` |
+| `para i desde 0 hasta 10 paso 1 hacer … fin_para` | `for (let i = 0; i <= 10; i += 1) { … }` |
+| `mientras cond hacer … fin_mientras` | `while (cond) { … }` |
+| `retornar expr` | `return expr;` |
+| `y` / `o` / `no` | `&&` / `\|\|` / `!` |
+| `verdadero` / `falso` | `true` / `false` |
+| `entero` / `real` | `number` |
+| `cadena` | `string` |
+| `booleano` | `boolean` |
+| `nulo` | `null` |
+| `^` (potencia) | `Math.pow(base, exp)` |
+
+> **Nota sobre tipos de usuario:** cuando una variable declara como tipo el nombre de una
+> clase propia (ej. `var r: Rectangulo`), el compilador conserva ese nombre directamente
+> en TypeScript (`let r: Rectangulo`), ya que TypeScript reconoce las clases como tipos.
