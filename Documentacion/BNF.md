@@ -2,12 +2,14 @@
 **Compiladores — Entrega 2 | Lenguaje de destino: TypeScript**
 
 > **Nota de versión:** Este documento reemplaza la gramática de la Entrega 1.
-> Se aplicaron tres correcciones necesarias para garantizar la condición LL(1) estricta
-> requerida por el analizador sintáctico predictivo descendente:
+> Durante la implementación final se aplicaron varias correcciones para garantizar una
+> condición **LL(1) estricta y coherente con el parser predictivo**:
 >
 > 1. Las notaciones EBNF `*` y `+` se expandieron a producciones BNF recursivas explícitas.
-> 2. `<sent_retornar>` se refactorizó para eliminar ambigüedad en FIRST.
-> 3. `<sent_identificador_cont>` se factorizó para tener FIRST disjuntos sin lookahead k=2.
+> 2. `<miembro>` se factorizó mediante `<miembro_base>` para evitar ambigüedad tras `publico` / `privado`.
+> 3. `<sent_identificador>` se amplió para aceptar sentencias que inician con `este`.
+> 4. `<bloque>` se reorganizó como secuencia de sentencias no-retorno más un retorno final opcional, evitando conflictos FIRST/FOLLOW en `retornar`.
+> 5. `<sent_identificador_cont>` se factorizó para tener FIRST disjuntos sin lookahead k=2.
 
 ---
 
@@ -93,10 +95,12 @@ Donde:
 ```bnf
 <declaracion> ::= <def_clase>
                | <def_funcion>
-               | <sentencia>
+               | <sentencia_no_retorno>
 ```
 
-FIRST(`<declaracion>`) = `{ clase, funcion, var, si, para, mientras, retornar, IDENT }`  
+> **Nota de alcance:** `retornar` no se admite como declaración global; solo aparece dentro de bloques de función.
+
+FIRST(`<declaracion>`) = `{ clase, funcion, var, si, para, mientras, este, IDENT }`  
 FIRST(`ε`) se decide por SIGUIENTE(`<programa>`) = `{ $ }`  
 → Disjuntos. LL(1) correcto.
 
@@ -124,25 +128,22 @@ SIGUIENTE(`<lista_miembros>`) = `{ fin_clase }`
 → Disjuntos. LL(1) correcto.
 
 ```bnf
-<miembro> ::= <modificador> <def_funcion>
-            | <modificador> <decl_atributo>
+<miembro> ::= <modificador> <miembro_base>
+
+<miembro_base> ::= <def_funcion>
+                 | <decl_atributo>
 
 <modificador> ::= publico
                | privado
                | ε
 
-<decl_atributo> ::= IDENTIFICADOR ":" <tipo>
-                  | IDENTIFICADOR ":" <tipo> "=" <expresion>
-```
-
-> **Nota:** `<decl_atributo>` comparte prefijo `IDENTIFICADOR ":" <tipo>`. Se factoriza:
-
-```bnf
 <decl_atributo> ::= IDENTIFICADOR ":" <tipo> <inicializacion_opt>
 
 <inicializacion_opt> ::= "=" <expresion>
                        | ε
 ```
+
+> **Corrección adicional de implementación:** el no-terminal `<miembro_base>` hace explícita la decisión LL(1) tras consumir el modificador opcional.
 
 ---
 
@@ -171,26 +172,31 @@ SIGUIENTE(`<lista_miembros>`) = `{ fin_clase }`
 ### 3.4 Bloque y sentencias
 
 ```bnf
-<bloque>      ::= <sentencia> <bloque_cont>
-<bloque_cont> ::= <sentencia> <bloque_cont>
-                | ε
+<bloque> ::= <sentencia_no_retorno> <sentencia_no_retorno_seq> <retorno_final_opt>
+           | <sent_retornar>
+
+<sentencia_no_retorno_seq> ::= <sentencia_no_retorno> <sentencia_no_retorno_seq>
+                             | ε
+
+<retorno_final_opt> ::= <sent_retornar>
+                      | ε
 ```
 
-> **Corrección aplicada (Alerta 1):** La notación EBNF `<sentencia>+` se expandió.
-> `<bloque>` exige al menos una sentencia (la primera es obligatoria). `<bloque_cont>`
-> maneja el resto con ε, preservando la semántica del operador `+`.
+> **Corrección aplicada en la implementación:** para evitar el conflicto FIRST/FOLLOW de `retornar` con `<expresion_opt>`, el retorno se modela como **sentencia única del bloque** o como **retorno final opcional** al cierre del bloque.
 
-FIRST(`<sentencia>`) = `{ var, si, para, mientras, retornar, IDENT }`  
-SIGUIENTE(`<bloque_cont>`) = `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }`  
+FIRST(`<bloque>`) = `{ var, si, para, mientras, retornar, este, IDENT }`  
+SIGUIENTE(`<retorno_final_opt>`) = `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }`  
 → Disjuntos. LL(1) correcto.
 
 ```bnf
-<sentencia> ::= <decl_variable>
-              | <sent_si>
-              | <sent_para>
-              | <sent_mientras>
+<sentencia> ::= <sentencia_no_retorno>
               | <sent_retornar>
-              | <sent_identificador>
+
+<sentencia_no_retorno> ::= <decl_variable>
+                         | <sent_si>
+                         | <sent_para>
+                         | <sent_mientras>
+                         | <sent_identificador>
 ```
 
 FIRST de cada alternativa:
@@ -201,8 +207,8 @@ FIRST de cada alternativa:
 | `<sent_si>` | `{ si }` |
 | `<sent_para>` | `{ para }` |
 | `<sent_mientras>` | `{ mientras }` |
+| `<sent_identificador>` | `{ este, IDENT }` |
 | `<sent_retornar>` | `{ retornar }` |
-| `<sent_identificador>` | `{ IDENT }` |
 
 Todos disjuntos. LL(1) correcto.
 
@@ -234,6 +240,7 @@ Todos disjuntos. LL(1) correcto.
 
 ```bnf
 <sent_identificador> ::= IDENTIFICADOR <sent_identificador_cont>
+                       | este "." IDENTIFICADOR <sent_post_punto>
 
 <sent_identificador_cont> ::= "=" <expresion>
                             | "(" <argumentos> ")"
@@ -460,22 +467,25 @@ NIVEL 8 — valor_atomico              literal / variable / llamada   (mayor pre
 
 | No-terminal | FIRST |
 |---|---|
-| `<programa>` | `{ clase, funcion, var, si, para, mientras, retornar, IDENT, ε }` |
-| `<declaracion>` | `{ clase, funcion, var, si, para, mientras, retornar, IDENT }` |
+| `<programa>` | `{ clase, funcion, var, si, para, mientras, este, IDENT, ε }` |
+| `<declaracion>` | `{ clase, funcion, var, si, para, mientras, este, IDENT }` |
 | `<def_clase>` | `{ clase }` |
 | `<def_funcion>` | `{ funcion }` |
 | `<lista_miembros>` | `{ publico, privado, funcion, IDENT, ε }` |
 | `<miembro>` | `{ publico, privado, funcion, IDENT }` |
+| `<miembro_base>` | `{ funcion, IDENT }` |
 | `<modificador>` | `{ publico, privado, ε }` |
-| `<bloque>` | `{ var, si, para, mientras, retornar, IDENT }` |
-| `<bloque_cont>` | `{ var, si, para, mientras, retornar, IDENT, ε }` |
-| `<sentencia>` | `{ var, si, para, mientras, retornar, IDENT }` |
+| `<bloque>` | `{ var, si, para, mientras, retornar, este, IDENT }` |
+| `<sentencia_no_retorno_seq>` | `{ var, si, para, mientras, este, IDENT, ε }` |
+| `<retorno_final_opt>` | `{ retornar, ε }` |
+| `<sentencia>` | `{ var, si, para, mientras, retornar, este, IDENT }` |
+| `<sentencia_no_retorno>` | `{ var, si, para, mientras, este, IDENT }` |
 | `<decl_variable>` | `{ var }` |
 | `<sent_si>` | `{ si }` |
 | `<sent_para>` | `{ para }` |
 | `<sent_mientras>` | `{ mientras }` |
 | `<sent_retornar>` | `{ retornar }` |
-| `<sent_identificador>` | `{ IDENT }` |
+| `<sent_identificador>` | `{ este, IDENT }` |
 | `<sent_identificador_cont>` | `{ =, (, . }` |
 | `<sent_post_punto>` | `{ =, (, . }` |
 | `<expresion_opt>` | `{ NUMERO_ENTERO, NUMERO_REAL, CADENA_LITERAL, verdadero, falso, nulo, nuevo, este, IDENT, (, no, -, ε }` |
@@ -495,12 +505,13 @@ NIVEL 8 — valor_atomico              literal / variable / llamada   (mayor pre
 |---|---|
 | `<programa>` | `{ $ }` |
 | `<lista_miembros>` | `{ fin_clase }` |
-| `<bloque_cont>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` |
-| `<expresion_opt>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino, $ }` |
+| `<sentencia_no_retorno_seq>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino, retornar }` |
+| `<retorno_final_opt>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` |
+| `<expresion_opt>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` |
 | `<rama_sino>` | `{ fin_si }` |
 | `<paso_opt>` | `{ hacer }` |
-| `<inicializacion_opt>` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino, var, si, para, mientras, retornar, IDENT, publico, privado, fin_clase }` |
-| `<tipo_retorno_opt>` | `{ var, si, para, mientras, retornar, IDENT }` |
+| `<inicializacion_opt>` | `{ $, var, si, para, mientras, retornar, este, IDENT, publico, privado, funcion, fin_clase, fin_funcion, fin_si, fin_para, fin_mientras, sino }` |
+| `<tipo_retorno_opt>` | `{ var, si, para, mientras, retornar, este, IDENT }` |
 | `<herencia_opt>` | `{ publico, privado, funcion, IDENT, fin_clase }` |
 | `<modificador>` | `{ funcion, IDENT }` |
 | `<parametros>` | `{ ) }` |
@@ -527,23 +538,24 @@ aparece al **final**, nunca al inicio. La expansión de `*` y `+` en la Entrega 
 esta propiedad:
 
 ```
-<programa>             ::= <declaracion> <programa> | ε
-<lista_miembros>       ::= <miembro> <lista_miembros> | ε
-<bloque_cont>          ::= <sentencia> <bloque_cont> | ε
-<continuacion_suma_resta> ::= "+" <multiplicacion_div_mod> <continuacion_suma_resta> | ε
+<programa>                 ::= <declaracion> <programa> | ε
+<lista_miembros>           ::= <miembro> <lista_miembros> | ε
+<sentencia_no_retorno_seq> ::= <sentencia_no_retorno> <sentencia_no_retorno_seq> | ε
+<continuacion_suma_resta>  ::= "+" <multiplicacion_div_mod> <continuacion_suma_resta> | ε
 ```
 
 ### 5.2 FIRST disjuntos en todas las alternativas
 
-Tras las tres correcciones, ningún no-terminal presenta ambigüedad:
+Tras las correcciones finales de implementación, los puntos sensibles quedan resueltos así:
 
 | No-terminal corregido | FIRST alt.1 | FIRST alt.2 | FIRST alt.3 | ¿Disjuntos? |
 |---|---|---|---|---|
+| `<miembro_base>` | `{ funcion }` | `{ IDENT }` | — | ✓ |
+| `<sent_identificador>` | `{ IDENT }` | `{ este }` | — | ✓ |
 | `<sent_identificador_cont>` | `{ = }` | `{ ( }` | `{ . }` | ✓ |
 | `<sent_post_punto>` | `{ = }` | `{ ( }` | `{ . }` | ✓ |
-| `<sent_retornar>` | único camino con `<expresion_opt>` | — | — | ✓ |
-| `<expresion_opt>` | FIRST(`<expresion>`) | FOLLOW(`<expresion_opt>`) | — | ✓ |
-| `<bloque_cont>` | FIRST(`<sentencia>`) | FOLLOW(`<bloque_cont>`) | — | ✓ |
+| `<retorno_final_opt>` | `{ retornar }` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` | — | ✓ |
+| `<sentencia_no_retorno_seq>` | FIRST(`<sentencia_no_retorno>`) | FOLLOW(`<sentencia_no_retorno_seq>`) | — | ✓ |
 | `<programa>` | FIRST(`<declaracion>`) | `{ $ }` | — | ✓ |
 | `<lista_miembros>` | FIRST(`<miembro>`) | `{ fin_clase }` | — | ✓ |
 
@@ -554,15 +566,16 @@ no-terminal son disjuntos:
 
 | No-terminal | FIRST (alt. no vacía) | FOLLOW | ¿Disjuntos? |
 |---|---|---|---|
-| `<programa>` | `{ clase, funcion, var, si, para, ... }` | `{ $ }` | ✓ |
+| `<programa>` | `{ clase, funcion, var, si, para, mientras, este, IDENT }` | `{ $ }` | ✓ |
 | `<lista_miembros>` | `{ publico, privado, funcion, IDENT }` | `{ fin_clase }` | ✓ |
-| `<bloque_cont>` | `{ var, si, para, mientras, retornar, IDENT }` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` | ✓ |
-| `<expresion_opt>` | FIRST(`<expresion>`) | `{ fin_funcion, fin_si, ... }` | ✓ |
+| `<sentencia_no_retorno_seq>` | `{ var, si, para, mientras, este, IDENT }` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino, retornar }` | ✓ |
+| `<retorno_final_opt>` | `{ retornar }` | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` | ✓ |
+| `<expresion_opt>` | FIRST(`<expresion>`) | `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }` | ✓ |
 | `<rama_sino>` | `{ sino }` | `{ fin_si }` | ✓ |
 | `<paso_opt>` | `{ paso }` | `{ hacer }` | ✓ |
 | `<herencia_opt>` | `{ extiende }` | `{ publico, privado, funcion, IDENT, fin_clase }` | ✓ |
-| `<tipo_retorno_opt>` | `{ : }` | `{ var, si, para, mientras, retornar, IDENT }` | ✓ |
-| `<inicializacion_opt>` | `{ = }` | `{ fin_funcion, fin_si, ... }` | ✓ |
+| `<tipo_retorno_opt>` | `{ : }` | `{ var, si, para, mientras, retornar, este, IDENT }` | ✓ |
+| `<inicializacion_opt>` | `{ = }` | `{ $, var, si, para, mientras, retornar, este, IDENT, ... }` | ✓ |
 | `<modificador>` | `{ publico, privado }` | `{ funcion, IDENT }` | ✓ |
 | `<parametros>` | `{ IDENT }` | `{ ) }` | ✓ |
 | `<argumentos>` | FIRST(`<expresion>`) | `{ ) }` | ✓ |
@@ -678,10 +691,11 @@ var resultado: real = 2 ** 8
 
 | # | Sección | Cambio | Motivo |
 |---|---|---|---|
-| 1 | §3.1 | `<declaracion>*` → `<programa> ::= <declaracion> <programa> \| ε` | Alerta 1: expandir EBNF a BNF pura |
-| 2 | §3.2 | `<miembro>*` → `<lista_miembros>` con recursividad derecha | Alerta 1: expandir EBNF a BNF pura |
-| 3 | §3.4 | `<sentencia>+` → `<bloque> + <bloque_cont>` | Alerta 1: expandir EBNF a BNF pura |
-| 4 | §3.6 | Factorización de `<sent_identificador_cont>` y nuevo `<sent_post_punto>` | Alerta 3: eliminar necesidad de lookahead k=2 |
-| 5 | §3.10 | `retornar <expresion> \| retornar` → `retornar <expresion_opt>` | Alerta 2: eliminar ambigüedad de FIRST |
-| 6 | §4 | Tabla completa de FIRST y FOLLOW añadida | Requisito explícito del enunciado (E2) |
-| 7 | §5 | Verificación LL(1) actualizada con nuevas producciones | Coherencia con correcciones |
+| 1 | §3.1 | `<declaracion>*` → `<programa> ::= <declaracion> <programa> \| ε` | Expandir EBNF a BNF pura |
+| 2 | §3.2 | `<miembro>*` → `<lista_miembros>` con recursividad derecha | Expandir EBNF a BNF pura |
+| 3 | §3.2 | `<miembro>` → `<modificador> <miembro_base>` | Hacer explícita la decisión LL(1) tras `publico` / `privado` |
+| 4 | §3.4 | `<bloque>` reescrito con `<sentencia_no_retorno_seq>` y `<retorno_final_opt>` | Evitar conflicto FIRST/FOLLOW en `retornar` |
+| 5 | §3.6 | `<sent_identificador>` ampliado para iniciar también con `este` | Soportar asignaciones y llamadas a miembros como `este.x = ...` |
+| 6 | §3.6 | Factorización de `<sent_identificador_cont>` y nuevo `<sent_post_punto>` | Eliminar necesidad de lookahead k=2 |
+| 7 | §4 | Tabla completa de FIRST y FOLLOW actualizada con los nuevos no-terminales | Requisito explícito del enunciado (E2) |
+| 8 | §5 | Verificación LL(1) ajustada a la gramática realmente implementada | Coherencia entre documento y código |

@@ -4,6 +4,8 @@ Compiladores — Entrega 1 | Lenguaje fuente → TypeScript
 """
 
 from dataclasses import dataclass, field
+from typing import Optional
+
 from tokens import Token, TokenType
 from lexer import Lexer
 
@@ -102,7 +104,7 @@ def categoria_token(tok: Token) -> str:
 @dataclass
 class Segmento:
     texto:       str
-    token:       Token | None
+    token:       Optional[Token]
     char_inicio: int
 
 
@@ -199,7 +201,7 @@ class EstadoLexer:
     # ── Consultas ─────────────────────────────────────────────
 
     @property
-    def token_activo(self) -> Token | None:
+    def token_activo(self) -> Optional[Token]:
         if 0 < self.paso <= len(self.tokens_todos):
             tok = self.tokens_todos[self.paso - 1]
             return tok if tok.tipo != TokenType.EOF else None

@@ -174,6 +174,39 @@ class Lexer:
             self._avanzar(); self._avanzar()
             self._agregar(TokenType.MAYOR_IGUAL, ">=", fila, col)
 
+        # Operadores ajenos al lenguaje — error guiado
+        elif c == "&" and self._siguiente() == "&":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '&&' no válido en este lenguaje. Use la palabra reservada 'y'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "&&", fila, col)
+
+        elif c == "|" and self._siguiente() == "|":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '||' no válido en este lenguaje. Use la palabra reservada 'o'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "||", fila, col)
+
+        elif c == "*" and self._siguiente() == "*":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '**' no válido en este lenguaje. Para potencia use '^'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "**", fila, col)
+
+        elif c == "!":
+            self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '!' no válido en este lenguaje. Use la palabra reservada 'no'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "!", fila, col)
+
         # Operadores de un carácter
         elif c == "<":
             self._avanzar()

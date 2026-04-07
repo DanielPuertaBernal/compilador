@@ -1,0 +1,4 @@
+# No se requieren librerías externas para la Entrega 2.
+# La interfaz usa Tkinter, incluido en Python estándar.
+# En Linux, si falta Tkinter:
+#   sudo apt install python3-tk
