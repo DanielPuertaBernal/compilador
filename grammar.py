@@ -203,36 +203,4 @@ fin_mientras""",
 fin_funcion""",
         True,
     ),
-    (
-        "Error: falta fin_si",
-        """si x > 0 entonces
-  var total2: entero = 1""",
-        False,
-    ),
-    (
-        "Error: var sin tipo",
-        """var z = 5""",
-        False,
-    ),
-    (
-        "Error: operador &&",
-        """si x > 0 && valor > 0 entonces
-  retornar verdadero
-fin_si""",
-        False,
-    ),
-    (
-        "Error: operador **",
-        """var resultado: real = 2 ** 8""",
-        False,
-    ),
-    (
-        "Errores lexicos",
-        """var resultado: entero = 10 @ 2
-var nombre: cadena = "Hola mundo
-var edad: entero = 5
-/* Este comentario no cierra
-var x: entero = 1""",
-        False,
-    ),
 ]

@@ -26,17 +26,25 @@ class RecursiveDescentParser:
         self.tokens = tokens
         self.pos = 0
         self.table = LL1_TABLE
+        self._partial_root = None
 
     def parse(self) -> ParseResult:
         """Ejecuta el análisis recursivo y devuelve ParseResult."""
         raiz = None
+        self._partial_root = None
         try:
             raiz = self.parse_programa()
+            self._partial_root = raiz
             if token_to_terminal(self._current_token()) != EOF_SYMBOL:
                 self._raise_expected({EOF_SYMBOL}, "Se esperaba el fin del programa")
             return ParseResult(metodo="recursivo", valido=True, arbol=raiz)
         except ParserAbort as exc:
-            return ParseResult(metodo="recursivo", valido=False, arbol=raiz, error=exc.error)
+            return ParseResult(
+                metodo="recursivo",
+                valido=False,
+                arbol=raiz or self._partial_root,
+                error=exc.error,
+            )
 
     def _current_token(self) -> Token:
         """Token en la posición actual o el último si se pasó del final."""
@@ -50,14 +58,16 @@ class RecursiveDescentParser:
 
     def _parse_nonterminal(self, nonterminal: str) -> ParseNode:
         """Expande un no-terminal consultando la tabla LL(1)."""
+        node = ParseNode(display_symbol(nonterminal))
+        if nonterminal == "programa" and self._partial_root is None:
+            self._partial_root = node
+
         lookahead = self._lookahead()
         production = self.table.get(nonterminal, {}).get(lookahead)
         if production is None:
             expected = sorted(self.table.get(nonterminal, {}).keys())
             mensaje = f"No se puede expandir {display_symbol(nonterminal)} con el token actual"
             self._raise_expected(expected, mensaje)
-
-        node = ParseNode(display_symbol(nonterminal))
         for symbol in production:
             if symbol == EPSILON:
                 node.add_child(ParseNode(EPSILON, is_terminal=True))

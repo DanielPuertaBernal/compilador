@@ -37,6 +37,7 @@ Proyecto de curso para un lenguaje fuente con palabras reservadas en español y 
 
 | Archivo | Responsabilidad |
 |---|---|
+| `main.py` | Menú principal para elegir entre la vista léxica y la sintáctica |
 | `tokens.py` | Enum `TokenType` con los 33 tokens del lenguaje y dataclass `Token` |
 | `lexer.py` | Clase `Lexer` — analizador léxico independiente y reutilizable |
 | `gui_logic.py` | `EstadoLexer` — lógica de estado del análisis léxico (paso a paso, segmentos, errores) |
@@ -71,10 +72,11 @@ venv\Scripts\activate
 # Mac / Linux
 source venv/bin/activate
 
-# Ejecutar la interfaz gráfica de la Entrega 1 (léxico)
-python gui_tk.py
+# Abrir el menú principal (recomendado)
+python main.py
 
-# Ejecutar la interfaz gráfica de la Entrega 2 (sintáctico)
+# O ejecutar cada interfaz por separado
+python gui_tk.py
 python gui_parser_tk.py
 ```
 
@@ -103,7 +105,7 @@ Seleccionar uno de los 5 programas en la barra superior del editor:
 | Busqueda lineal | `para/desde/hasta/paso`, `si`, variables |
 | Clase Rectangulo | OOP completo — clases, atributos, métodos, `nuevo` |
 | Mientras + Logicos | `mientras`, operadores `y` / `o` / `no` |
-| Errores lexicos | Detección de `@`, cadena sin cerrar, comentario sin cerrar |
+| Retornar vacio | Función con `retornar` sin expresión |
 
 Una vez cargado el código, usar los botones de análisis:
 
