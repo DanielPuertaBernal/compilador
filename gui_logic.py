@@ -4,68 +4,16 @@ Compiladores — Entrega 1 | Lenguaje fuente → TypeScript
 """
 
 from dataclasses import dataclass, field
+from typing import Optional
+
 from tokens import Token, TokenType
 from lexer import Lexer
+from grammar import PROGRAMAS as _PROGRAMAS_FULL
 
 
-# ── Programas predefinidos ────────────────────────────────────────
+# ── Programas predefinidos (subconjunto léxico: nombre, código) ───
 
-PROGRAMAS: list[tuple[str, str]] = [
-    ("Factorial", """\
-funcion factorial(n: entero): entero
-  si n == 0 entonces
-    retornar 1
-  sino
-    retornar n * factorial(n - 1)
-  fin_si
-fin_funcion
-var resultado: entero = factorial(5)"""),
-
-    ("Busqueda lineal", """\
-funcion buscar(valor: entero): booleano
-  var encontrado: booleano = falso
-  var limite: entero = 10
-  para i desde 0 hasta limite paso 1 hacer
-    si i == valor entonces
-      encontrado = verdadero
-    fin_si
-  fin_para
-  retornar encontrado
-fin_funcion"""),
-
-    ("Clase Rectangulo", """\
-clase Rectangulo
-  privado ancho: real
-  privado alto: real
-  funcion constructor(a: real, h: real)
-    este.ancho = a
-    este.alto = h
-  fin_funcion
-  funcion area(): real
-    retornar este.ancho * este.alto
-  fin_funcion
-fin_clase
-var r: Rectangulo = nuevo Rectangulo(4.0, 4.0)"""),
-
-    ("Mientras + Logicos", """\
-var contador: entero = 0
-var activo: booleano = verdadero
-mientras contador < 100 y activo hacer
-  si contador % 2 == 0 entonces
-    contador = contador + 1
-  sino
-    activo = falso
-  fin_si
-fin_mientras"""),
-
-    # Errores léxicos según la documentación (BNF sección 8)
-    ("Errores lexicos", """\
-var resultado: entero = 10 @ 2
-var nombre: cadena = "Hola mundo
-var edad: entero = 5
-/* Este comentario no cierra
-var x: entero = 1"""),
-]
+PROGRAMAS: list[tuple[str, str]] = [(n, c) for n, c, _ in _PROGRAMAS_FULL]
 
 
 # ── Categorías de token ───────────────────────────────────────────
@@ -84,6 +32,7 @@ _DELIMITADORES = {TokenType.PAREN_IZQ, TokenType.PAREN_DER,
 
 
 def categoria_token(tok: Token) -> str:
+    """Clasifica un TokenType en su categoría visual para la UI."""
     if tok.tipo == TokenType.ERROR:           return "error"
     if tok.tipo == TokenType.IDENTIFICADOR:   return "identificador"
     if tok.tipo in (TokenType.NUMERO_ENTERO,
@@ -102,7 +51,7 @@ def categoria_token(tok: Token) -> str:
 @dataclass
 class Segmento:
     texto:       str
-    token:       Token | None
+    token:       Optional[Token]
     char_inicio: int
 
 
@@ -122,6 +71,7 @@ class EstadoLexer:
     auto_speed:     int            = 300
 
     def preparar(self) -> None:
+        """Inicializa el lexer con código nuevo y resetea el estado."""
         lex = Lexer(self.codigo)
         self.tokens_todos, self.errores_todos = lex.tokenizar()
         self.paso       = 0
@@ -130,6 +80,7 @@ class EstadoLexer:
         self._construir_segmentos()
 
     def _construir_segmentos(self) -> None:
+        """Divide el código en segmentos coloreables por posición de token."""
         self.segmentos = []
         src = self.codigo
         pos = 0
@@ -152,6 +103,7 @@ class EstadoLexer:
     # ── Acciones ─────────────────────────────────────────────
 
     def analizar_todo(self) -> None:
+        """Tokeniza el código completo de una vez."""
         self.detener_auto()
         self.preparar()
         for tok in self.tokens_todos:
@@ -160,6 +112,7 @@ class EstadoLexer:
         self.paso = len(self.tokens_todos)
 
     def siguiente_paso(self) -> bool:
+        """Avanza al siguiente token en modo paso a paso."""
         if not self.analizado:
             self.preparar()
         if self.paso < len(self.tokens_todos):
@@ -199,7 +152,7 @@ class EstadoLexer:
     # ── Consultas ─────────────────────────────────────────────
 
     @property
-    def token_activo(self) -> Token | None:
+    def token_activo(self) -> Optional[Token]:
         if 0 < self.paso <= len(self.tokens_todos):
             tok = self.tokens_todos[self.paso - 1]
             return tok if tok.tipo != TokenType.EOF else None

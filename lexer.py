@@ -76,9 +76,11 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _fin(self) -> bool:
+        """Verdadero si se consumió toda la entrada."""
         return self.pos >= len(self.fuente)
 
     def _actual(self) -> str:
+        """Carácter en la posición actual."""
         return self.fuente[self.pos] if not self._fin() else ""
 
     def _siguiente(self) -> str:
@@ -101,6 +103,7 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _saltar_espacios_y_comentarios(self):
+        """Avanza sobre espacios en blanco y comentarios // y /* */."""
         while not self._fin():
             c = self._actual()
 
@@ -141,6 +144,7 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _siguiente_token(self):
+        """Reconoce y retorna el siguiente token desde la posición actual."""
         fila = self.fila
         col  = self.columna
         c    = self._actual()
@@ -173,6 +177,39 @@ class Lexer:
         elif c == ">" and self._siguiente() == "=":
             self._avanzar(); self._avanzar()
             self._agregar(TokenType.MAYOR_IGUAL, ">=", fila, col)
+
+        # Operadores ajenos al lenguaje — error guiado
+        elif c == "&" and self._siguiente() == "&":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '&&' no válido en este lenguaje. Use la palabra reservada 'y'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "&&", fila, col)
+
+        elif c == "|" and self._siguiente() == "|":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '||' no válido en este lenguaje. Use la palabra reservada 'o'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "||", fila, col)
+
+        elif c == "*" and self._siguiente() == "*":
+            self._avanzar(); self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '**' no válido en este lenguaje. Para potencia use '^'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "**", fila, col)
+
+        elif c == "!":
+            self._avanzar()
+            self._errores.append(ErrorLexico(
+                "Operador '!' no válido en este lenguaje. Use la palabra reservada 'no'.",
+                fila, col
+            ))
+            self._agregar(TokenType.ERROR, "!", fila, col)
 
         # Operadores de un carácter
         elif c == "<":

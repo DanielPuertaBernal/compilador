@@ -1,5 +1,5 @@
 # Vocabulario del Lenguaje Fuente
-**Compiladores — Entrega 1 | Lenguaje de destino: TypeScript**
+**Teoría de Compiladores — Trabajo de curso | Lenguaje fuente del proyecto**
 
 ---
 
@@ -114,6 +114,7 @@
 | `(` `)` | Parámetros y agrupación de expresiones |
 | `,` | Separación de parámetros |
 | `:` | Declaración de tipo (`var x: entero`) |
+| `.` | Acceso a miembros y métodos (`este.x`, `obj.metodo()`) |
 | `"` | Delimitador de cadenas de texto |
 | `//` | Comentario de línea |
 | `/* */` | Comentario de bloque |

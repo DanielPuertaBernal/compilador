@@ -1,27 +1,37 @@
 # Compilador Fuente-a-Fuente — Español a TypeScript
+**Teoría de Compiladores — Trabajo de curso | Entrega 2**
 
-Repositorio que contiene la lógica necesaria para la construcción de un compilador capaz de transformar una gramática libre de contexto definida en lenguaje natural (español) hacia código en el lenguaje de destino TypeScript.
-
----
-
-## Descripción general
-
-El proyecto consiste en diseñar un lenguaje de programación propio con palabras reservadas en español y construir, a lo largo de las entregas del curso, un compilador completo que traduzca programas escritos en ese lenguaje fuente a TypeScript.
+Proyecto de curso para un lenguaje fuente con palabras reservadas en español y análisis sintáctico sobre una gramática LL(1), reutilizando el analizador léxico construido en la Entrega 1.
 
 ---
 
-## Entregas
+## Resumen del proyecto
 
-### Entrega 1 — Análisis Léxico y Gramática BNF
+- **Lenguaje fuente:** imperativo y orientado a objetos, con sintaxis en español
+- **Lenguaje de destino:** TypeScript
+- **Método 1:** parser descendente recursivo con árbol sintáctico
+- **Método 2:** parser predictivo LL(1) con tabla, pila y traza paso a paso
 
-| Documento | Descripción |
+## Documentación incluida
+
+| Documento | Contenido |
 |---|---|
-| [Requisitos del Lenguaje Origen](Documentacion/RequisitosLenguajeOrigen.md) | Vocabulario completo del lenguaje fuente: palabras reservadas, operadores, delimitadores, ejemplos y tabla de traducción a TypeScript. |
-| [Gramática BNF](Documentacion/BNF.md) | Gramática Libre de Contexto en notación BNF: terminales, producciones, verificación LL, cobertura de requisitos y ejemplos de programas válidos e inválidos. |
+| [Requisitos del Lenguaje Origen](Documentacion/RequisitosLenguajeOrigen.md) | Vocabulario, operadores, delimitadores y equivalencias con TypeScript |
+| [Gramática BNF](Documentacion/BNF.md) | Gramática final en BNF, conjuntos FIRST/FOLLOW, verificación LL(1) y ajustes realizados |
+| `README.md` | Instalación, ejecución y resumen de entregables |
+
+## Entregables de la Entrega 2
+
+| Entregable | Evidencia en el repositorio |
+|---|---|
+| **E1 — Código fuente Python** | `lexer.py`, `parser_recursive.py`, `parser_predictive.py`, `gui_parser_tk.py` y módulos auxiliares |
+| **E2 — Tabla LL(1) calculada** | `ll1_table.py`, pestañas de tabla y FIRST/FOLLOW en `gui_parser_tk.py`, §4 de `Documentacion/BNF.md` |
+| **E3 — README actualizado** | Este archivo |
+| **E5 — Ajustes a la gramática** | §8 de `Documentacion/BNF.md` |
 
 ---
 
-## Entregable práctico — Analizador Léxico
+## Código fuente incluido
 
 ### Archivos
 
@@ -29,12 +39,19 @@ El proyecto consiste en diseñar un lenguaje de programación propio con palabra
 |---|---|
 | `tokens.py` | Enum `TokenType` con los 33 tokens del lenguaje y dataclass `Token` |
 | `lexer.py` | Clase `Lexer` — analizador léxico independiente y reutilizable |
-| `gui_logic.py` | `EstadoLexer` — lógica de estado del análisis (paso a paso, segmentos, errores) |
-| `gui_tk.py` | Interfaz gráfica Tkinter — visualización interactiva del análisis |
+| `gui_logic.py` | `EstadoLexer` — lógica de estado del análisis léxico (paso a paso, segmentos, errores) |
+| `gui_tk.py` | Interfaz gráfica Tkinter de la Entrega 1 — visualización interactiva del análisis léxico |
+| `grammar.py` | Gramática LL(1) factorizada y programas de prueba para la Entrega 2 |
+| `ll1_table.py` | Cálculo de conjuntos `FIRST`, `FOLLOW` y tabla LL(1) |
+| `parse_tree.py` | Nodos del árbol sintáctico, errores y resultados unificados |
+| `parser_recursive.py` | Analizador sintáctico descendente recursivo |
+| `parser_predictive.py` | Analizador sintáctico predictivo descendente con pila explícita |
+| `gui_parser_tk.py` | Interfaz gráfica Tkinter de la Entrega 2 — árbol, traza LL(1) y validación sintáctica |
+| `requirements.txt` | Dependencias externas del proyecto |
 
 ### Requisitos
 
-- Python 3.10 o superior
+- Python 3.9 o superior
 - `tkinter` — incluido en Python estándar. En Linux: `sudo apt install python3-tk`
 - No requiere dependencias externas adicionales
 
@@ -54,11 +71,23 @@ venv\Scripts\activate
 # Mac / Linux
 source venv/bin/activate
 
-# Ejecutar la interfaz gráfica
+# Ejecutar la interfaz gráfica de la Entrega 1 (léxico)
 python gui_tk.py
+
+# Ejecutar la interfaz gráfica de la Entrega 2 (sintáctico)
+python gui_parser_tk.py
 ```
 
-### Uso de la interfaz
+### Flujo sugerido para la sustentación
+
+1. Abrir `gui_parser_tk.py`
+2. Probar un caso **válido** con el método **recursivo** y mostrar el árbol
+3. Probar el mismo caso con **predictivo LL(1)** y mostrar la traza de pila
+4. Ejecutar un caso **inválido** para evidenciar el reporte de error
+
+## Uso de la aplicación
+
+#### Entrega 1 — Analizador léxico
 
 La interfaz ofrece dos modos de ingreso de código fuente:
 
@@ -84,6 +113,19 @@ Una vez cargado el código, usar los botones de análisis:
 | **Paso siguiente** | Avanza un token — muestra el proceso paso a paso |
 | **Reiniciar** | Limpia el análisis y vuelve al estado inicial |
 
+#### Entrega 2 — Analizador sintáctico
+
+La nueva interfaz `gui_parser_tk.py` permite:
+
+| Funcionalidad | Descripción |
+|---|---|
+| Selección de método | Elegir entre **recursivo** y **predictivo LL(1)** |
+| Programas predefinidos | Casos válidos e inválidos para probar la gramática |
+| Árbol sintáctico | Visualización del árbol generado por ambos métodos |
+| Traza predictiva | Tabla paso a paso con pila, lookahead y acción tomada |
+| Tabla LL(1) | Vista de la tabla calculada automáticamente desde la gramática |
+| FIRST / FOLLOW | Conjuntos calculados y mostrados en la propia app |
+
 ### Funcionalidades cubiertas
 
 | Requisito del enunciado | Implementación |
@@ -93,19 +135,7 @@ Una vez cargado el código, usar los botones de análisis:
 | Visualización gráfica de tokens | Panel "Posicion del Analizador" — colores por categoría, resaltado de línea activa, indicador del token actual |
 | Tabla de símbolos léxicos | Panel "Tabla de Simbolos Lexicos" — lexema, categoría, TokenType, fila, columna |
 | Manejo de errores léxicos | Barra inferior — fila y columna exactas, análisis continúa sin abortar |
-| Independencia del lexer | `lexer.py` — clase autónoma importable directamente en futuras entregas |
-
-### Reutilización del lexer en entregas futuras
-
-```python
-from lexer import Lexer
-
-lex = Lexer(codigo_fuente)
-tokens, errores = lex.tokenizar()
-
-# tokens: list[Token]       — .tipo, .lexema, .fila, .columna
-# errores: list[ErrorLexico] — .mensaje, .fila, .columna
-```
+| Integración con el lexer de la Entrega 1 | `lexer.py` se reutiliza directamente por los parsers y la interfaz, sin duplicar lógica |
 
 ---
 
