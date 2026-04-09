@@ -76,9 +76,11 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _fin(self) -> bool:
+        """Verdadero si se consumió toda la entrada."""
         return self.pos >= len(self.fuente)
 
     def _actual(self) -> str:
+        """Carácter en la posición actual."""
         return self.fuente[self.pos] if not self._fin() else ""
 
     def _siguiente(self) -> str:
@@ -101,6 +103,7 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _saltar_espacios_y_comentarios(self):
+        """Avanza sobre espacios en blanco y comentarios // y /* */."""
         while not self._fin():
             c = self._actual()
 
@@ -141,6 +144,7 @@ class Lexer:
     # ─────────────────────────────────────────────────────────────────
 
     def _siguiente_token(self):
+        """Reconoce y retorna el siguiente token desde la posición actual."""
         fila = self.fila
         col  = self.columna
         c    = self._actual()

@@ -9,17 +9,10 @@ Ejecutar:
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 
-from grammar import PROGRAMAS_SINTACTICOS
-from lexer import Lexer
-from ll1_table import (
-    build_ll1_table,
-    compute_first_sets,
-    compute_follow_sets,
-    render_first_follow_text,
-    render_ll1_table,
-)
-from parser_predictive import PredictiveParser
-from parser_recursive import RecursiveDescentParser
+from grammar import PROGRAMAS
+from ll1_table import render_first_follow_text, render_ll1_table
+from parser_controller import AnalysisRequest, run_analysis
+from parser_state import FIRST_SETS, FOLLOW_SETS, LL1_TABLE
 from parse_tree import ParseNode
 
 T = {
@@ -49,10 +42,6 @@ class SyntaxApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.method_var = tk.StringVar(value="recursivo")
-
-        self.first_sets = compute_first_sets()
-        self.follow_sets = compute_follow_sets(first_sets=self.first_sets)
-        self.ll1_table = build_ll1_table(first_sets=self.first_sets, follow_sets=self.follow_sets)
 
         root.title("Analizador Sintactico — Entrega 2")
         root.geometry("1440x900")
@@ -123,7 +112,7 @@ class SyntaxApp:
         presets_frame = tk.Frame(parent, bg=T["bg"])
         presets_frame.pack(fill="x", padx=8, pady=(6, 4))
         self.preset_buttons = []
-        for index, (name, _) in enumerate(PROGRAMAS_SINTACTICOS):
+        for index, (name, _, _valid) in enumerate(PROGRAMAS):
             btn = tk.Button(
                 presets_frame,
                 text=name,
@@ -265,12 +254,13 @@ class SyntaxApp:
         self.first_follow_text.pack(fill="both", expand=True, padx=8, pady=8)
 
     def _render_static_docs(self) -> None:
-        self._set_text_widget(self.ll_text, render_ll1_table(self.ll1_table))
-        self._set_text_widget(self.first_follow_text, render_first_follow_text(self.first_sets, self.follow_sets))
+        """Rellena las pestañas estáticas de tabla LL(1) y FIRST/FOLLOW."""
+        self._set_text_widget(self.ll_text, render_ll1_table(LL1_TABLE))
+        self._set_text_widget(self.first_follow_text, render_first_follow_text(FIRST_SETS, FOLLOW_SETS))
         self._set_text_widget(self.summary, "Selecciona un ejemplo o escribe tu código, luego elige el método y pulsa Analizar.")
 
     def _load_preset(self, index: int) -> None:
-        _, code = PROGRAMAS_SINTACTICOS[index]
+        _, code, _ = PROGRAMAS[index]
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", code)
         for i, button in enumerate(self.preset_buttons):
@@ -290,28 +280,24 @@ class SyntaxApp:
             self._set_text_widget(self.summary, "")
 
     def _analyze(self) -> None:
+        """Ejecuta análisis léxico+sintáctico y actualiza toda la UI."""
         code = self.editor.get("1.0", "end-1c")
-        tokens, lexical_errors = Lexer(code).tokenizar()
         self._clear_runtime_views(keep_message=True)
 
-        if lexical_errors:
+        errors, result = run_analysis(AnalysisRequest(code, self.method_var.get()))
+
+        if errors:
             lines = ["Se detectaron errores léxicos. El análisis sintáctico no se ejecutó.", ""]
-            for error in lexical_errors:
+            for error in errors:
                 lines.append(f"- Fila {error.fila}, columna {error.columna}: {error.mensaje}")
             self._set_status("Errores léxicos detectados.", ok=False)
             self._set_text_widget(self.summary, "\n".join(lines))
             return
 
-        if self.method_var.get() == "recursivo":
-            result = RecursiveDescentParser(tokens).parse()
-        else:
-            result = PredictiveParser(tokens).parse()
-
         self._set_status(result.mensaje, ok=result.valido)
         summary_lines = [
             f"Método: {result.metodo}",
             f"Estado: {'VÁLIDO' if result.valido else 'INVÁLIDO'}",
-            f"Tokens consumidos (sin EOF): {max(0, len(tokens) - 1)}",
             "",
             result.mensaje,
         ]
@@ -333,6 +319,7 @@ class SyntaxApp:
             self.trace.insert("", "end", values=("—", "—", "—", "Este método no usa pila explícita.", "—"))
 
     def _node_text_and_tag(self, node: ParseNode):
+        """Devuelve texto y tag de color para un nodo del árbol."""
         if node.symbol == "ε":
             return f"ε  {node.label}", "epsilon"
         if node.is_terminal:
@@ -345,6 +332,7 @@ class SyntaxApp:
             self._expand_all(child)
 
     def _render_tree(self, node: ParseNode) -> None:
+        """Carga el ParseNode en el Treeview de Tkinter."""
         self.tree.delete(*self.tree.get_children())
 
         def add_node(parent: str, current: ParseNode) -> None:

@@ -13,6 +13,7 @@ LL1Table = Dict[str, Dict[str, List[str]]]
 
 
 def first_of_sequence(sequence: Sequence[str], first_sets: FirstSets) -> Set[str]:
+    """Calcula FIRST de una secuencia de símbolos."""
     if not sequence or sequence == [EPSILON]:
         return {EPSILON}
 
@@ -42,6 +43,7 @@ def first_of_sequence(sequence: Sequence[str], first_sets: FirstSets) -> Set[str
 
 
 def compute_first_sets(grammar: Dict[str, List[List[str]]] = GRAMMAR) -> FirstSets:
+    """Calcula los conjuntos FIRST de todos los no-terminales."""
     first_sets: FirstSets = {nonterminal: set() for nonterminal in grammar}
     changed = True
 
@@ -62,6 +64,7 @@ def compute_follow_sets(
     start_symbol: str = START_SYMBOL,
     first_sets: FirstSets = None,
 ) -> FollowSets:
+    """Calcula los conjuntos FOLLOW de todos los no-terminales."""
     if first_sets is None:
         first_sets = compute_first_sets(grammar)
 
@@ -96,6 +99,7 @@ def build_ll1_table(
     first_sets: FirstSets = None,
     follow_sets: FollowSets = None,
 ) -> LL1Table:
+    """Construye la tabla de análisis LL(1) a partir de FIRST/FOLLOW."""
     if first_sets is None:
         first_sets = compute_first_sets(grammar)
     if follow_sets is None:
@@ -128,6 +132,7 @@ def build_ll1_table(
 
 
 def render_first_follow_text(first_sets: FirstSets, follow_sets: FollowSets) -> str:
+    """Genera texto plano con los conjuntos FIRST y FOLLOW."""
     lines = ["CONJUNTOS FIRST Y FOLLOW", "=" * 72, ""]
     for nonterminal in GRAMMAR:
         first_text = ", ".join(sorted(first_sets[nonterminal]))
@@ -140,6 +145,7 @@ def render_first_follow_text(first_sets: FirstSets, follow_sets: FollowSets) -> 
 
 
 def render_ll1_table(table: LL1Table) -> str:
+    """Genera texto plano con la tabla LL(1) formateada."""
     terminals = get_terminals()
     columns = ["No terminal"] + terminals
 

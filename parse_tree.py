@@ -6,7 +6,7 @@ Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from tokens import Token
+from tokens import Token, TokenType
 
 
 @dataclass
@@ -40,6 +40,59 @@ class ParserAbort(Exception):
         super().__init__(str(error))
 
 
+def build_hint(
+    expected: List[str],
+    current: Token,
+    eof_fallback: str = "El programa terminó antes de cerrar una estructura de control o declaración.",
+) -> str:
+    """Genera una sugerencia legible a partir del token actual y los esperados."""
+    expected_set = set(expected)
+
+    if current.tipo == TokenType.EOF:
+        for cierre in ["fin_si", "fin_para", "fin_mientras", "fin_funcion", "fin_clase"]:
+            if cierre in expected_set:
+                return f"Parece faltar `{cierre}` antes de terminar el archivo."
+        return eof_fallback
+
+    if current.lexema == "*" and any(
+        item in expected_set
+        for item in ["NUMERO_ENTERO", "NUMERO_REAL", "IDENTIFICADOR", "(", "nuevo"]
+    ):
+        return "Para la potencia usa `^`; la secuencia `**` no pertenece al lenguaje fuente."
+    if ":" in expected_set:
+        return "Después del identificador debe aparecer `:` y luego el tipo declarado."
+    if "IDENTIFICADOR" in expected_set:
+        return "Se esperaba un nombre válido de variable, función, parámetro o clase."
+    if "entonces" in expected_set:
+        return "Después de la condición del `si` debe ir la palabra reservada `entonces`."
+    if "hacer" in expected_set:
+        return "Después del encabezado de `para` o `mientras` debe aparecer `hacer`."
+    if ")" in expected_set:
+        return "Revisa si falta cerrar un paréntesis `)`."
+    if "=" in expected_set:
+        return "Si buscas asignar un valor, usa `=` seguido de una expresión válida."
+    return ""
+
+
+def raise_syntax_error(
+    expected: List[str],
+    mensaje: str,
+    current: Token,
+    eof_fallback: str = "El programa terminó antes de cerrar una estructura de control o declaración.",
+) -> None:
+    """Construye SyntaxErrorInfo y lanza ParserAbort."""
+    recibido = current.lexema if current.lexema else current.tipo.name
+    error = SyntaxErrorInfo(
+        mensaje=mensaje,
+        fila=current.fila,
+        columna=current.columna,
+        esperado=list(expected),
+        recibido=recibido,
+        sugerencia=build_hint(expected, current, eof_fallback),
+    )
+    raise ParserAbort(error)
+
+
 @dataclass
 class ParseNode:
     """Nodo genérico del árbol de análisis sintáctico."""
@@ -50,6 +103,7 @@ class ParseNode:
     is_terminal: bool = False
 
     def add_child(self, child: "ParseNode") -> None:
+        """Añade un nodo hijo al final de la lista."""
         self.children.append(child)
 
     @property

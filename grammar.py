@@ -84,48 +84,26 @@ GRAMMAR: Dict[str, List[List[str]]] = {
 
 NON_TERMINALS: Set[str] = set(GRAMMAR.keys())
 
-_SPECIAL_TOKEN_MAP = {
-    "IDENTIFICADOR": TokenType.IDENTIFICADOR,
-    "NUMERO_ENTERO": TokenType.NUMERO_ENTERO,
-    "NUMERO_REAL": TokenType.NUMERO_REAL,
-    "CADENA_LITERAL": TokenType.CADENA_LITERAL,
-}
-
-TOKEN_NAME_TO_TYPE = {
-    terminal: token_type
-    for terminal, token_type in _SPECIAL_TOKEN_MAP.items()
-}
-TOKEN_NAME_TO_TYPE.update(
-    {
-        token_type.value: token_type
-        for token_type in TokenType
-        if token_type not in {
-            TokenType.IDENTIFICADOR,
-            TokenType.NUMERO_ENTERO,
-            TokenType.NUMERO_REAL,
-            TokenType.CADENA_LITERAL,
-            TokenType.EOF,
-            TokenType.ERROR,
-        }
-    }
-)
-
 
 def is_nonterminal(symbol: str) -> bool:
+    """Verdadero si el símbolo es un no-terminal de la gramática."""
     return symbol in NON_TERMINALS
 
 
 def display_symbol(symbol: str) -> str:
+    """Envuelve no-terminales en <> para mostrar."""
     if is_nonterminal(symbol):
         return f"<{symbol}>"
     return symbol
 
 
 def sanitize_nonterminal(symbol: str) -> str:
+    """Reemplaza guiones por _ para nombre de método válido."""
     return symbol.replace("-", "_")
 
 
 def token_to_terminal(token: Token) -> str:
+    """Convierte un Token del lexer al terminal que usa la gramática."""
     if token.tipo == TokenType.EOF:
         return EOF_SYMBOL
     if token.tipo == TokenType.ERROR:
@@ -141,6 +119,7 @@ def token_to_terminal(token: Token) -> str:
 
 
 def get_terminals(grammar: Dict[str, List[List[str]]] = GRAMMAR) -> List[str]:
+    """Devuelve la lista ordenada de terminales presentes en la gramática."""
     seen = []
     for productions in grammar.values():
         for production in productions:
@@ -157,10 +136,11 @@ def get_terminals(grammar: Dict[str, List[List[str]]] = GRAMMAR) -> List[str]:
 
 
 def format_production(left: str, right: Sequence[str]) -> str:
+    """Formatea una producción como cadena legible: <NT> → α β."""
     return f"<{left}> → {' '.join(right)}"
 
 
-PROGRAMAS_SINTACTICOS = [
+PROGRAMAS: list[tuple[str, str, bool]] = [
     (
         "Factorial",
         """funcion factorial(n: entero): entero
@@ -171,6 +151,7 @@ PROGRAMAS_SINTACTICOS = [
   fin_si
 fin_funcion
 var resultado: entero = factorial(5)""",
+        True,
     ),
     (
         "Busqueda lineal",
@@ -184,6 +165,7 @@ var resultado: entero = factorial(5)""",
   fin_para
   retornar encontrado
 fin_funcion""",
+        True,
     ),
     (
         "Clase Rectangulo",
@@ -199,30 +181,58 @@ fin_funcion""",
   fin_funcion
 fin_clase
 var r: Rectangulo = nuevo Rectangulo(4.0, 4.0)""",
+        True,
+    ),
+    (
+        "Mientras + Logicos",
+        """var contador: entero = 0
+var activo: booleano = verdadero
+mientras contador < 100 y activo hacer
+  si contador % 2 == 0 entonces
+    contador = contador + 1
+  sino
+    activo = falso
+  fin_si
+fin_mientras""",
+        True,
     ),
     (
         "Retornar vacio",
         """funcion saludar()
   retornar
 fin_funcion""",
+        True,
     ),
     (
         "Error: falta fin_si",
         """si x > 0 entonces
   var total2: entero = 1""",
+        False,
     ),
     (
         "Error: var sin tipo",
         """var z = 5""",
+        False,
     ),
     (
         "Error: operador &&",
         """si x > 0 && valor > 0 entonces
   retornar verdadero
 fin_si""",
+        False,
     ),
     (
         "Error: operador **",
         """var resultado: real = 2 ** 8""",
+        False,
+    ),
+    (
+        "Errores lexicos",
+        """var resultado: entero = 10 @ 2
+var nombre: cadena = "Hola mundo
+var edad: entero = 5
+/* Este comentario no cierra
+var x: entero = 1""",
+        False,
     ),
 ]

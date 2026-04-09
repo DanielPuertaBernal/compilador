@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 
 class TokenType(Enum):
+    """Tipos de token reconocidos por el analizador léxico."""
+
     # ── Palabras reservadas — Tipos de datos ──────────────────────────
     ENTERO      = "entero"
     REAL        = "real"

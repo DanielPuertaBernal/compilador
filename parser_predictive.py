@@ -7,7 +7,6 @@ from typing import List, Optional, Tuple
 
 from grammar import (
     EOF_SYMBOL,
-    GRAMMAR,
     START_SYMBOL,
     EPSILON,
     display_symbol,
@@ -15,13 +14,9 @@ from grammar import (
     is_nonterminal,
     token_to_terminal,
 )
-from ll1_table import build_ll1_table, compute_first_sets, compute_follow_sets
-from parse_tree import ParseNode, ParseResult, ParseTraceStep, ParserAbort, SyntaxErrorInfo
-from tokens import Token, TokenType
-
-FIRST_SETS = compute_first_sets()
-FOLLOW_SETS = compute_follow_sets(first_sets=FIRST_SETS)
-LL1_TABLE = build_ll1_table(first_sets=FIRST_SETS, follow_sets=FOLLOW_SETS)
+from parse_tree import ParseNode, ParseResult, ParseTraceStep, ParserAbort, raise_syntax_error
+from parser_state import LL1_TABLE
+from tokens import Token
 
 
 class PredictiveParser:
@@ -34,6 +29,7 @@ class PredictiveParser:
         self.trace: List[ParseTraceStep] = []
 
     def parse(self) -> ParseResult:
+        """Ejecuta el análisis predictivo con pila explícita y genera traza."""
         raiz = ParseNode(display_symbol(START_SYMBOL))
         stack: List[Tuple[str, Optional[ParseNode]]] = [(EOF_SYMBOL, None), (START_SYMBOL, raiz)]
         paso = 1
@@ -120,11 +116,13 @@ class PredictiveParser:
             )
 
     def _current_token(self) -> Token:
+        """Token en la posición actual o el último si se pasó del final."""
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return self.tokens[-1]
 
     def _lookahead_text(self, token: Token, terminal: str) -> str:
+        """Texto legible del lookahead para la columna de traza."""
         if terminal == EOF_SYMBOL:
             return EOF_SYMBOL
         if token.lexema:
@@ -132,45 +130,13 @@ class PredictiveParser:
         return terminal
 
     def _stack_to_text(self, stack: List[Tuple[str, Optional[ParseNode]]]) -> str:
+        """Representación textual de la pila para la traza."""
         return "[ " + " | ".join(display_symbol(symbol) for symbol, _ in stack) + " ]"
 
-    def _build_hint(self, expected: List[str], current: Token) -> str:
-        expected_set = set(expected)
-
-        if current.tipo == TokenType.EOF:
-            for cierre in ["fin_si", "fin_para", "fin_mientras", "fin_funcion", "fin_clase"]:
-                if cierre in expected_set:
-                    return f"Parece faltar `{cierre}` antes de terminar el archivo."
-            return "La entrada terminó antes de que la pila pudiera cerrar todas las producciones."
-
-        if current.lexema == "*" and any(item in expected_set for item in ["NUMERO_ENTERO", "NUMERO_REAL", "IDENTIFICADOR", "(", "nuevo"]):
-            return "Para la potencia usa `^`; la secuencia `**` no pertenece al lenguaje fuente."
-        if ":" in expected_set:
-            return "Después del identificador debe aparecer `:` y luego el tipo declarado."
-        if "IDENTIFICADOR" in expected_set:
-            return "Se esperaba un nombre válido de variable, función, parámetro o clase."
-        if "entonces" in expected_set:
-            return "Después de la condición del `si` debe ir la palabra reservada `entonces`."
-        if "hacer" in expected_set:
-            return "Después del encabezado de `para` o `mientras` debe aparecer `hacer`."
-        if ")" in expected_set:
-            return "Revisa si falta cerrar un paréntesis `)`."
-        if "=" in expected_set:
-            return "Si buscas asignar un valor, usa `=` seguido de una expresión válida."
-        return ""
+    _EOF_FALLBACK = "La entrada terminó antes de que la pila pudiera cerrar todas las producciones."
 
     def _raise_error(self, expected: List[str], mensaje: str) -> None:
-        current = self._current_token()
-        recibido = current.lexema if current.lexema else current.tipo.name
-        error = SyntaxErrorInfo(
-            mensaje=mensaje,
-            fila=current.fila,
-            columna=current.columna,
-            esperado=list(expected),
-            recibido=recibido,
-            sugerencia=self._build_hint(expected, current),
-        )
-        raise ParserAbort(error)
+        raise_syntax_error(expected, mensaje, self._current_token(), eof_fallback=self._EOF_FALLBACK)
 
 
 if __name__ == "__main__":
