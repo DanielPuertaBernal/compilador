@@ -1,15 +1,5 @@
 # Gramática Libre de Contexto — Notación BNF
-**Compiladores — Entrega 2 | Lenguaje de destino: TypeScript**
-
-> **Nota de versión:** Este documento reemplaza la gramática de la Entrega 1.
-> Durante la implementación final se aplicaron varias correcciones para garantizar una
-> condición **LL(1) estricta y coherente con el parser predictivo**:
->
-> 1. Las notaciones EBNF `*` y `+` se expandieron a producciones BNF recursivas explícitas.
-> 2. `<miembro>` se factorizó mediante `<miembro_base>` para evitar ambigüedad tras `publico` / `privado`.
-> 3. `<sent_identificador>` se amplió para aceptar sentencias que inician con `este`.
-> 4. `<bloque>` se reorganizó como secuencia de sentencias no-retorno más un retorno final opcional, evitando conflictos FIRST/FOLLOW en `retornar`.
-> 5. `<sent_identificador_cont>` se factorizó para tener FIRST disjuntos sin lookahead k=2.
+**Teoría de Compiladores — Trabajo de curso | Entrega 2**
 
 ---
 
@@ -89,20 +79,11 @@ Donde:
              | ε
 ```
 
-> **Corrección aplicada (Alerta 1):** La notación EBNF `<declaracion>*` se expandió a
-> recursividad derecha explícita. `<programa>` puede derivar en ε, permitiendo programas vacíos.
-
 ```bnf
 <declaracion> ::= <def_clase>
                | <def_funcion>
                | <sentencia_no_retorno>
 ```
-
-> **Nota de alcance:** `retornar` no se admite como declaración global; solo aparece dentro de bloques de función.
-
-FIRST(`<declaracion>`) = `{ clase, funcion, var, si, para, mientras, este, IDENT }`  
-FIRST(`ε`) se decide por SIGUIENTE(`<programa>`) = `{ $ }`  
-→ Disjuntos. LL(1) correcto.
 
 ---
 
@@ -120,13 +101,6 @@ FIRST(`ε`) se decide por SIGUIENTE(`<programa>`) = `{ $ }`
                    | ε
 ```
 
-> **Corrección aplicada (Alerta 1):** La notación EBNF `<miembro>*` dentro de `<def_clase>`
-> se expandió a `<lista_miembros>` con recursividad derecha explícita.
-
-FIRST(`<miembro>`) = `{ publico, privado, funcion, IDENT }`  
-SIGUIENTE(`<lista_miembros>`) = `{ fin_clase }`  
-→ Disjuntos. LL(1) correcto.
-
 ```bnf
 <miembro> ::= <modificador> <miembro_base>
 
@@ -142,8 +116,6 @@ SIGUIENTE(`<lista_miembros>`) = `{ fin_clase }`
 <inicializacion_opt> ::= "=" <expresion>
                        | ε
 ```
-
-> **Corrección adicional de implementación:** el no-terminal `<miembro_base>` hace explícita la decisión LL(1) tras consumir el modificador opcional.
 
 ---
 
@@ -182,12 +154,6 @@ SIGUIENTE(`<lista_miembros>`) = `{ fin_clase }`
                       | ε
 ```
 
-> **Corrección aplicada en la implementación:** para evitar el conflicto FIRST/FOLLOW de `retornar` con `<expresion_opt>`, el retorno se modela como **sentencia única del bloque** o como **retorno final opcional** al cierre del bloque.
-
-FIRST(`<bloque>`) = `{ var, si, para, mientras, retornar, este, IDENT }`  
-SIGUIENTE(`<retorno_final_opt>`) = `{ fin_funcion, fin_si, fin_para, fin_mientras, sino }`  
-→ Disjuntos. LL(1) correcto.
-
 ```bnf
 <sentencia> ::= <sentencia_no_retorno>
               | <sent_retornar>
@@ -198,19 +164,6 @@ SIGUIENTE(`<retorno_final_opt>`) = `{ fin_funcion, fin_si, fin_para, fin_mientra
                          | <sent_mientras>
                          | <sent_identificador>
 ```
-
-FIRST de cada alternativa:
-
-| Alternativa | FIRST |
-|---|---|
-| `<decl_variable>` | `{ var }` |
-| `<sent_si>` | `{ si }` |
-| `<sent_para>` | `{ para }` |
-| `<sent_mientras>` | `{ mientras }` |
-| `<sent_identificador>` | `{ este, IDENT }` |
-| `<sent_retornar>` | `{ retornar }` |
-
-Todos disjuntos. LL(1) correcto.
 
 ---
 
@@ -227,17 +180,6 @@ Todos disjuntos. LL(1) correcto.
 
 ### 3.6 Sentencia iniciada por identificador — asignación o llamada
 
-> **Corrección aplicada (Alerta 3 — lookahead k=2):**
->
-> El problema original era que `<sent_identificador_cont>` tenía dos alternativas con
-> FIRST no disjuntos: el punto `"."` aparecía tanto en el inicio del acceso a miembro
-> (camino a asignación) como en el inicio de llamada a método.
->
-> **Solución:** se factoriza el punto completamente, separando los tres caminos posibles
-> (asignación directa, llamada a función, punto) en alternativas con FIRST disjuntos `{=}`,
-> `{(}`, `{.}`. El caso del punto luego decide recursivamente si termina en asignación
-> o en llamada a método.
-
 ```bnf
 <sent_identificador> ::= IDENTIFICADOR <sent_identificador_cont>
                        | este "." IDENTIFICADOR <sent_post_punto>
@@ -250,26 +192,6 @@ Todos disjuntos. LL(1) correcto.
                     | "(" <argumentos> ")"
                     | "." IDENTIFICADOR <sent_post_punto>
 ```
-
-FIRST de `<sent_identificador_cont>`:
-
-| Alternativa | FIRST |
-|---|---|
-| `"=" <expresion>` | `{ = }` |
-| `"(" <argumentos> ")"` | `{ ( }` |
-| `"." IDENT <sent_post_punto>` | `{ . }` |
-
-Todos disjuntos. LL(1) correcto, sin necesidad de lookahead k=2.
-
-FIRST de `<sent_post_punto>`:
-
-| Alternativa | FIRST |
-|---|---|
-| `"=" <expresion>` | `{ = }` |
-| `"(" <argumentos> ")"` | `{ ( }` |
-| `"." IDENT <sent_post_punto>` | `{ . }` |
-
-Todos disjuntos. LL(1) correcto.
 
 ---
 
@@ -284,10 +206,6 @@ Todos disjuntos. LL(1) correcto.
 <rama_sino> ::= sino <bloque>
               | ε
 ```
-
-FIRST(`sino`) = `{ sino }`  
-SIGUIENTE(`<rama_sino>`) = `{ fin_si }`  
-→ Disjuntos. LL(1) correcto.
 
 ---
 
@@ -305,10 +223,6 @@ SIGUIENTE(`<rama_sino>`) = `{ fin_si }`
              | ε
 ```
 
-FIRST(`paso`) = `{ paso }`  
-SIGUIENTE(`<paso_opt>`) = `{ hacer }`  
-→ Disjuntos. LL(1) correcto.
-
 ---
 
 ### 3.9 Estructura de repetición — mientras / hacer / fin_mientras
@@ -324,27 +238,12 @@ SIGUIENTE(`<paso_opt>`) = `{ hacer }`
 
 ### 3.10 Instrucción de retorno
 
-> **Corrección aplicada (Alerta 2):**
->
-> La gramática original tenía:
-> ```
-> <sent_retornar> ::= retornar <expresion>  |  retornar
-> ```
-> Ambas alternativas tienen FIRST = `{ retornar }`. La tabla LL(1) no puede decidir.
->
-> **Solución:** se introduce `<expresion_opt>` para que el `retornar` solo aparezca una vez.
-
 ```bnf
 <sent_retornar> ::= retornar <expresion_opt>
 
 <expresion_opt> ::= <expresion>
                   | ε
 ```
-
-FIRST(`<expresion>`) = `{ NUMERO_ENTERO, NUMERO_REAL, CADENA_LITERAL, verdadero, falso,`  
-`  nulo, nuevo, este, IDENT, (, no, - }`  
-SIGUIENTE(`<expresion_opt>`) = `{ fin_funcion, fin_si, fin_para, fin_mientras, sino, $ }`  
-→ Disjuntos. LL(1) correcto.
 
 ---
 
@@ -643,16 +542,13 @@ var r: Rectangulo = nuevo Rectangulo(4.0, 4.0)
 var resultado: booleano = r.esCuadrado()
 ```
 
-### 6.4 retornar sin expresión (corrección Alerta 2)
+### 6.4 Retornar sin expresión
 
 ```
 funcion saludar()
   retornar
 fin_funcion
 ```
-
-> Este programa ahora es válido. Bajo la gramática corregida, `retornar` consume
-> `<expresion_opt>` que deriva en ε al ver `fin_funcion` en el FOLLOW.
 
 ---
 
@@ -687,7 +583,7 @@ var resultado: real = 2 ** 8
 
 ---
 
-## 8. Registro de cambios respecto a la Entrega 1
+## 8. Ajustes a la gramática de la Entrega 1
 
 | # | Sección | Cambio | Motivo |
 |---|---|---|---|
