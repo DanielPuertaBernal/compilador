@@ -11,68 +11,9 @@ import tkinter as tk
 from tkinter import ttk, font as tkfont
 import threading
 
-from tokens import TokenType
-from gui_logic import EstadoLexer, PROGRAMAS, categoria_token
-
-
-# ═══════════════════════════════════════════════════════════════════
-# PALETA DE COLORES — Tema claro profesional
-# ═══════════════════════════════════════════════════════════════════
-
-T = {
-    # Fondos
-    "bg":              "#F3F4F8",
-    "surface":         "#FFFFFF",
-    "surface2":        "#EBECF5",
-    "surface3":        "#E0E4EE",
-    "header_bg":       "#1C2840",
-    "panel_header":    "#2C3A56",
-
-    # Bordes y texto
-    "border":          "#D0D5E2",
-    "text":            "#28304A",
-    "text_dim":        "#6E7A96",
-    "text_bright":     "#12182E",
-    "text_white":      "#FFFFFF",
-    "text_header":     "#BEC8E6",
-
-    # Acento
-    "accent":          "#2563EB",
-    "accent_light":    "#DBEAFE",
-    "accent2":         "#6366F1",
-
-    # Categorías — color de texto
-    "reservada":       "#1D4ED8",
-    "tipo":            "#047857",
-    "logico":          "#6D28D9",
-    "operador":        "#A14508",
-    "delimitador":     "#475569",
-    "identificador":   "#12182E",
-    "numero":          "#AF3A0C",
-    "cadena":          "#856E0E",
-    "booleano":        "#5B21B6",
-    "error":           "#B91C1C",
-
-    # Fondos pastel por categoría
-    "reservada_bg":    "#DBEAFE",
-    "tipo_bg":         "#D1FAE5",
-    "logico_bg":       "#EDE9FE",
-    "operador_bg":     "#FEF3C7",
-    "delimitador_bg":  "#F1F5F9",
-    "identificador_bg":"#E2E8F0",
-    "numero_bg":       "#FFEDD5",
-    "cadena_bg":       "#FEF9C3",
-    "booleano_bg":     "#F3E8FF",
-    "error_bg":        "#FEE2E2",
-
-    # Tabla
-    "row_alt":         "#F8F9FC",
-    "row_active":      "#DBEAFE",
-
-    # Progreso
-    "progress_bg":     "#D0D5E2",
-    "progress_fill":   "#2563EB",
-}
+from lexico.Tokens import TokenType
+from lexico.LogicaLexer import EstadoLexer, PROGRAMAS, CategoriaToken
+from gui.Estilos import TEMA as T
 
 # Categorías en orden para la leyenda
 CATEGORIAS = [
@@ -85,7 +26,7 @@ CATEGORIAS = [
 # APLICACIÓN PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════
 
-class App:
+class AplicacionLexer:
 
     def __init__(self, root: tk.Tk):
         self.root   = root
@@ -589,7 +530,7 @@ class App:
             if tok is None:
                 self.viz.insert("end", seg.texto, "espacio")
             else:
-                cat = categoria_token(tok)
+                cat = CategoriaToken(tok)
                 self.viz.insert("end", seg.texto, cat)
 
         self.viz.configure(state="disabled")
@@ -637,7 +578,7 @@ class App:
                 self.viz.insert("end", seg.texto, "espacio")
                 continue
 
-            cat = categoria_token(tok)
+            cat = CategoriaToken(tok)
             try:
                 idx = self.estado.tokens_todos.index(tok)
             except ValueError:
@@ -666,7 +607,7 @@ class App:
         self.viz.configure(state="disabled")
 
         # Actualizar indicador inferior
-        cat   = categoria_token(tok_act)
+        cat   = CategoriaToken(tok_act)
         color = T[cat]
         bg    = T[f"{cat}_bg"]
         self.lbl_tok_activo.configure(
@@ -709,7 +650,7 @@ class App:
         self.tabla.selection_set(iid)
 
     def _insertar_fila(self, tok, indice: int) -> str:
-        cat = categoria_token(tok)
+        cat = CategoriaToken(tok)
         tag = cat if indice % 2 == 0 else f"{cat}_alt"
         iid = self.tabla.insert(
             "", "end",
@@ -774,8 +715,12 @@ class App:
         self.lbl_progreso.configure(text=f"{pct}%")
 
 
+# Alias de compatibilidad
+App = AplicacionLexer
+
+
 # ═══════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     root = tk.Tk()
-    app  = App(root)
+    app  = AplicacionLexer(root)
     root.mainloop()

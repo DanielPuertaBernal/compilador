@@ -1,49 +1,26 @@
 """
 gui_parser_tk.py — Interfaz gráfica de análisis sintáctico
-Compiladores — Entrega 2 | Descendente recursivo y predictivo LL(1)
-
-Ejecutar:
-    python gui_parser_tk.py
+Compiladores — Entrega 2 / 3 | Descendente recursivo y predictivo LL(1)
 """
 
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 
-from grammar import PROGRAMAS
-from ll1_table import render_first_follow_text, render_ll1_table
-from parser_controller import AnalysisRequest, run_analysis
-from parser_state import FIRST_SETS, FOLLOW_SETS, LL1_TABLE
-from parse_tree import ParseNode
-
-T = {
-    "bg": "#F3F4F8",
-    "surface": "#FFFFFF",
-    "surface2": "#EBECF5",
-    "border": "#D0D5E2",
-    "header_bg": "#1C2840",
-    "panel_header": "#2C3A56",
-    "text": "#28304A",
-    "text_dim": "#6E7A96",
-    "text_white": "#FFFFFF",
-    "text_header": "#BEC8E6",
-    "accent": "#2563EB",
-    "accent_light": "#DBEAFE",
-    "tree_nt": "#1D4ED8",
-    "tree_term": "#047857",
-    "tree_eps": "#6E7A96",
-    "ok": "#047857",
-    "ok_bg": "#D1FAE5",
-    "error": "#B91C1C",
-    "error_bg": "#FEE2E2",
-}
+from gui.Programas import PROGRAMAS
+from sintactico.TablaLL1 import RenderizarFirstFollow, RenderizarTablaLL1
+from sintactico.ControladorParser import SolicitudAnalisis, EjecutarAnalisis
+from sintactico.EstadoParser import CONJUNTOS_FIRST, CONJUNTOS_FOLLOW, TABLA_LL1
+from sintactico.ArbolSintactico import NodoArbol
+from gui.Estilos import TEMA as T
 
 
-class SyntaxApp:
+class AplicacionSintactico:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.method_var = tk.StringVar(value="recursivo")
+        self.recover_var = tk.BooleanVar(value=False)
 
-        root.title("Analizador Sintactico — Entrega 2")
+        root.title("Analizador Sintáctico — Entregas 2 & 3")
         root.geometry("1440x900")
         root.minsize(1160, 720)
         root.configure(bg=T["bg"])
@@ -53,27 +30,28 @@ class SyntaxApp:
             self.f_ui = tkfont.Font(family="Segoe UI", size=10)
             self.f_ui_b = tkfont.Font(family="Segoe UI", size=10, weight="bold")
             self.f_title = tkfont.Font(family="Segoe UI", size=13, weight="bold")
+            self.f_err = tkfont.Font(family="Consolas", size=11)
         except Exception:
             self.f_code = tkfont.Font(family="Courier New", size=12)
             self.f_ui = tkfont.Font(size=10)
             self.f_ui_b = tkfont.Font(size=10, weight="bold")
             self.f_title = tkfont.Font(size=13, weight="bold")
+            self.f_err = tkfont.Font(family="Courier New", size=11)
 
         self._build_ui()
         self._load_preset(0)
         self._render_static_docs()
 
+    # ── Construcción de la UI ─────────────────────────────────────────────────
+
     def _build_ui(self) -> None:
         self._build_header()
-
         body = tk.PanedWindow(self.root, orient="horizontal", bg=T["bg"], sashwidth=6, bd=0)
         body.pack(fill="both", expand=True, padx=10, pady=10)
-
         left = tk.Frame(body, bg=T["bg"])
         right = tk.Frame(body, bg=T["bg"])
         body.add(left, minsize=420, stretch="always")
         body.add(right, minsize=560, stretch="always")
-
         self._build_editor_panel(left)
         self._build_result_panel(right)
 
@@ -81,30 +59,23 @@ class SyntaxApp:
         header = tk.Frame(self.root, bg=T["header_bg"], height=56)
         header.pack(fill="x")
         header.pack_propagate(False)
-
         tk.Label(
-            header,
-            text="Analizador Sintactico",
-            bg=T["header_bg"],
-            fg=T["text_white"],
-            font=self.f_title,
+            header, text="Analizador Sintáctico",
+            bg=T["header_bg"], fg=T["text_white"], font=self.f_title,
         ).pack(side="left", padx=16, pady=14)
-
         tk.Label(
             header,
-            text="Compiladores · Entrega 2 · Recursivo + Predictivo LL(1)",
-            bg=T["header_bg"],
-            fg=T["text_header"],
-            font=self.f_ui,
+            text="Compiladores · Entregas 2 & 3 · Recursivo + Predictivo LL(1) + Recuperación de Errores",
+            bg=T["header_bg"], fg=T["text_header"], font=self.f_ui,
         ).pack(side="left", pady=14)
 
     def _panel_header(self, parent, title: str) -> None:
         hdr = tk.Frame(parent, bg=T["panel_header"], height=34)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
-        tk.Label(hdr, text=title, bg=T["panel_header"], fg=T["text_white"], font=self.f_ui_b).pack(
-            side="left", padx=12, pady=7
-        )
+        tk.Label(
+            hdr, text=title, bg=T["panel_header"], fg=T["text_white"], font=self.f_ui_b,
+        ).pack(side="left", padx=12, pady=7)
 
     def _build_editor_panel(self, parent) -> None:
         self._panel_header(parent, "Entrada del programa")
@@ -114,15 +85,8 @@ class SyntaxApp:
         self.preset_buttons = []
         for index, (name, _, _valid) in enumerate(PROGRAMAS):
             btn = tk.Button(
-                presets_frame,
-                text=name,
-                bg=T["surface"],
-                fg=T["text"],
-                font=self.f_ui,
-                relief="flat",
-                bd=1,
-                padx=6,
-                pady=3,
+                presets_frame, text=name, bg=T["surface"], fg=T["text"],
+                font=self.f_ui, relief="flat", bd=1, padx=6, pady=3,
                 command=lambda i=index: self._load_preset(i),
             )
             btn.pack(side="left", padx=2, pady=2)
@@ -131,48 +95,33 @@ class SyntaxApp:
         controls = tk.Frame(parent, bg=T["bg"])
         controls.pack(fill="x", padx=8, pady=(0, 6))
 
-        tk.Label(controls, text="Metodo:", bg=T["bg"], fg=T["text_dim"], font=self.f_ui_b).pack(side="left")
+        tk.Label(controls, text="Método:", bg=T["bg"], fg=T["text_dim"], font=self.f_ui_b).pack(side="left")
         ttk.Radiobutton(controls, text="Recursivo", value="recursivo", variable=self.method_var).pack(side="left", padx=(6, 6))
-        ttk.Radiobutton(controls, text="Predictivo LL(1)", value="predictivo", variable=self.method_var).pack(side="left")
+        ttk.Radiobutton(controls, text="Predictivo LL(1)", value="predictivo", variable=self.method_var).pack(side="left", padx=(0, 12))
+
+        ttk.Checkbutton(
+            controls, text="Recuperar errores (E3)",
+            variable=self.recover_var,
+        ).pack(side="left", padx=(0, 12))
 
         tk.Button(
-            controls,
-            text="Analizar",
-            bg=T["accent"],
-            fg=T["text_white"],
-            font=self.f_ui_b,
-            relief="flat",
-            padx=12,
-            pady=5,
-            command=self._analyze,
+            controls, text="Analizar",
+            bg=T["accent"], fg=T["text_white"], font=self.f_ui_b,
+            relief="flat", padx=12, pady=5, command=self._analyze,
         ).pack(side="right", padx=(6, 0))
 
         tk.Button(
-            controls,
-            text="Limpiar",
-            bg=T["surface"],
-            fg=T["text"],
-            font=self.f_ui,
-            relief="flat",
-            padx=10,
-            pady=5,
-            command=self._clear_runtime_views,
+            controls, text="Limpiar",
+            bg=T["surface"], fg=T["text"], font=self.f_ui,
+            relief="flat", padx=10, pady=5, command=self._clear_runtime_views,
         ).pack(side="right")
 
         editor_box = tk.Frame(parent, bg=T["border"], highlightthickness=1, highlightbackground=T["border"])
         editor_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         self.editor = tk.Text(
-            editor_box,
-            font=self.f_code,
-            bg=T["surface2"],
-            fg=T["text"],
-            relief="flat",
-            bd=0,
-            wrap="none",
-            padx=8,
-            pady=8,
-            undo=True,
+            editor_box, font=self.f_code, bg=T["surface2"], fg=T["text"],
+            relief="flat", bd=0, wrap="none", padx=8, pady=8, undo=True,
         )
         self.editor.pack(side="left", fill="both", expand=True)
 
@@ -187,16 +136,10 @@ class SyntaxApp:
 
         status_frame = tk.Frame(parent, bg=T["surface"], highlightbackground=T["border"], highlightthickness=1)
         status_frame.pack(fill="x", padx=8, pady=(6, 6))
-
         self.lbl_status = tk.Label(
-            status_frame,
-            text="Listo para analizar.",
-            bg=T["surface"],
-            fg=T["text"],
-            font=self.f_ui_b,
-            padx=10,
-            pady=8,
-            anchor="w",
+            status_frame, text="Listo para analizar.",
+            bg=T["surface"], fg=T["text"], font=self.f_ui_b,
+            padx=10, pady=8, anchor="w",
         )
         self.lbl_status.pack(fill="x")
 
@@ -204,26 +147,35 @@ class SyntaxApp:
         self.notebook.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         self.tab_summary = tk.Frame(self.notebook, bg=T["surface"])
+        self.tab_errors = tk.Frame(self.notebook, bg=T["surface"])
         self.tab_tree = tk.Frame(self.notebook, bg=T["surface"])
         self.tab_trace = tk.Frame(self.notebook, bg=T["surface"])
         self.tab_ll = tk.Frame(self.notebook, bg=T["surface"])
         self.tab_first_follow = tk.Frame(self.notebook, bg=T["surface"])
 
         self.notebook.add(self.tab_summary, text="Resumen")
-        self.notebook.add(self.tab_tree, text="Arbol")
+        self.notebook.add(self.tab_errors, text="Errores (E3)")
+        self.notebook.add(self.tab_tree, text="Árbol")
         self.notebook.add(self.tab_trace, text="Traza LL(1)")
         self.notebook.add(self.tab_ll, text="Tabla LL(1)")
         self.notebook.add(self.tab_first_follow, text="FIRST/FOLLOW")
 
-        self.summary = tk.Text(self.tab_summary, font=self.f_code, wrap="word", relief="flat", bg=T["surface"], fg=T["text"])
+        # Resumen
+        self.summary = tk.Text(
+            self.tab_summary, font=self.f_code, wrap="word",
+            relief="flat", bg=T["surface"], fg=T["text"],
+        )
         self.summary.pack(fill="both", expand=True, padx=8, pady=8)
 
+        # Errores E3
+        self._build_errors_tab()
+
+        # Árbol
         legend = tk.Frame(self.tab_tree, bg=T["surface"])
         legend.pack(fill="x", padx=8, pady=(8, 0))
         tk.Label(legend, text="■ No terminal", bg=T["surface"], fg=T["tree_nt"], font=self.f_ui_b).pack(side="left", padx=(0, 12))
         tk.Label(legend, text="■ Terminal", bg=T["surface"], fg=T["tree_term"], font=self.f_ui_b).pack(side="left", padx=(0, 12))
         tk.Label(legend, text="■ Épsilon", bg=T["surface"], fg=T["tree_eps"], font=self.f_ui_b).pack(side="left")
-
         tree_frame = tk.Frame(self.tab_tree, bg=T["surface"])
         tree_frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(tree_frame, show="tree")
@@ -235,6 +187,7 @@ class SyntaxApp:
         self.tree.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=8)
         tree_scroll.pack(side="right", fill="y", pady=8, padx=(0, 8))
 
+        # Traza
         trace_frame = tk.Frame(self.tab_trace, bg=T["surface"])
         trace_frame.pack(fill="both", expand=True)
         columns = ("paso", "pila", "lookahead", "accion", "celda")
@@ -247,17 +200,159 @@ class SyntaxApp:
         self.trace.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=8)
         trace_scroll.pack(side="right", fill="y", pady=8, padx=(0, 8))
 
-        self.ll_text = tk.Text(self.tab_ll, font=("Consolas", 9), wrap="none", relief="flat", bg=T["surface"], fg=T["text"])
+        # Tabla LL(1)
+        self.ll_text = tk.Text(
+            self.tab_ll, font=("Consolas", 9), wrap="none",
+            relief="flat", bg=T["surface"], fg=T["text"],
+        )
         self.ll_text.pack(fill="both", expand=True, padx=8, pady=8)
 
-        self.first_follow_text = tk.Text(self.tab_first_follow, font=("Consolas", 10), wrap="none", relief="flat", bg=T["surface"], fg=T["text"])
+        # FIRST/FOLLOW
+        self.first_follow_text = tk.Text(
+            self.tab_first_follow, font=("Consolas", 10), wrap="none",
+            relief="flat", bg=T["surface"], fg=T["text"],
+        )
         self.first_follow_text.pack(fill="both", expand=True, padx=8, pady=8)
 
+    def _build_errors_tab(self) -> None:
+        """Panel de errores Entrega 3 con tabla + detalle."""
+        top = tk.Frame(self.tab_errors, bg=T["surface"])
+        top.pack(fill="both", expand=True, padx=8, pady=(8, 4))
+
+        cols = ("#", "Línea", "Col", "Lexema", "Tipo", "Esperado")
+        self.err_tree = ttk.Treeview(top, columns=cols, show="headings", height=8)
+        widths = {"#": 40, "Línea": 70, "Col": 60, "Lexema": 120, "Tipo": 160, "Esperado": 300}
+        for col in cols:
+            self.err_tree.heading(col, text=col)
+            self.err_tree.column(col, width=widths.get(col, 100), anchor="w")
+        self.err_tree.tag_configure("error_row", background=T["error_bg"], foreground=T["error"])
+
+        err_scroll = ttk.Scrollbar(top, orient="vertical", command=self.err_tree.yview)
+        self.err_tree.configure(yscrollcommand=err_scroll.set)
+        self.err_tree.pack(side="left", fill="both", expand=True)
+        err_scroll.pack(side="right", fill="y")
+
+        self.err_tree.bind("<<TreeviewSelect>>", self._on_error_select)
+
+        detail_frame = tk.Frame(self.tab_errors, bg=T["surface"])
+        detail_frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
+        tk.Label(
+            detail_frame, text="Detalle del error seleccionado:",
+            bg=T["surface"], fg=T["text_dim"], font=self.f_ui_b,
+        ).pack(anchor="w")
+
+        self.err_detail = tk.Text(
+            detail_frame, font=self.f_err, wrap="word", height=8,
+            relief="flat", bg="#FFF7F7", fg=T["text"],
+        )
+        self.err_detail.pack(fill="both", expand=True)
+        self._err_objects = []  # stores SyntaxErrorInfo list
+
+    # ── Lógica de análisis ────────────────────────────────────────────────────
+
+    def _analyze(self) -> None:
+        code = self.editor.get("1.0", "end-1c")
+        self._clear_runtime_views(keep_message=True)
+
+        recover = self.recover_var.get()
+        errors, result = EjecutarAnalisis(SolicitudAnalisis(code, self.method_var.get(), recuperar=recover))
+
+        if errors:
+            lines = ["Errores léxicos detectados. Análisis sintáctico no ejecutado.", ""]
+            for e in errors:
+                lines.append(f"  Fila {e.fila}, col {e.columna}: {e.mensaje}")
+            self._set_status("Errores léxicos.", ok=False)
+            self._set_text_widget(self.summary, "\n".join(lines))
+            return
+
+        self._set_status(result.mensaje, ok=result.valido)
+
+        # Pestaña Resumen
+        summary_lines = [
+            f"Método       : {result.metodo}",
+            f"Recuperación : {'activada' if recover else 'desactivada'}",
+            f"Estado       : {'VÁLIDO ✓' if result.valido else f'INVÁLIDO — {len(result.errors)} error(es)'}",
+            "",
+        ]
+        if result.valido:
+            summary_lines.append("Cadena aceptada sin errores.")
+        else:
+            summary_lines.append(result.format_error_report())
+        if result.arbol is not None:
+            summary_lines.extend(["", "Árbol (ASCII):", result.arbol.to_ascii()])
+        self._set_text_widget(self.summary, "\n".join(summary_lines))
+
+        # Pestaña Errores E3
+        self._populate_errors_tab(result.errors)
+
+        # Árbol
+        if result.arbol is not None:
+            self._render_tree(result.arbol)
+
+        # Traza
+        if result.trace:
+            for step in result.trace:
+                self.trace.insert(
+                    "", "end",
+                    values=(step.paso, step.pila, step.lookahead, step.accion, step.celda),
+                )
+        else:
+            self.trace.insert("", "end", values=("—", "—", "—", "No usa pila explícita.", "—"))
+
+        # Ir a pestaña errores si los hay
+        if result.errors:
+            self.notebook.select(self.tab_errors)
+
+    def _populate_errors_tab(self, errors) -> None:
+        for item in self.err_tree.get_children():
+            self.err_tree.delete(item)
+        self._set_text_widget(self.err_detail, "")
+        self._err_objects = list(errors)
+
+        if not errors:
+            self.err_tree.insert(
+                "", "end",
+                values=("—", "—", "—", "—", "—", "Sin errores"),
+            )
+            return
+
+        for err in errors:
+            esperado_txt = ", ".join(err.esperado[:6])
+            if len(err.esperado) > 6:
+                esperado_txt += f" (+{len(err.esperado) - 6})"
+            self.err_tree.insert(
+                "", "end",
+                values=(
+                    err.numero,
+                    err.fila,
+                    err.columna,
+                    err.recibido_lexema,
+                    err.recibido_tipo,
+                    esperado_txt,
+                ),
+                tags=("error_row",),
+            )
+
+    def _on_error_select(self, _event) -> None:
+        sel = self.err_tree.selection()
+        if not sel:
+            return
+        idx = self.err_tree.index(sel[0])
+        if idx < len(self._err_objects):
+            err = self._err_objects[idx]
+            err.numero = idx + 1
+            self._set_text_widget(self.err_detail, err.format_report())
+
+    # ── Utilidades de la UI ───────────────────────────────────────────────────
+
     def _render_static_docs(self) -> None:
-        """Rellena las pestañas estáticas de tabla LL(1) y FIRST/FOLLOW."""
-        self._set_text_widget(self.ll_text, render_ll1_table(LL1_TABLE))
-        self._set_text_widget(self.first_follow_text, render_first_follow_text(FIRST_SETS, FOLLOW_SETS))
-        self._set_text_widget(self.summary, "Selecciona un ejemplo o escribe tu código, luego elige el método y pulsa Analizar.")
+        self._set_text_widget(self.ll_text, RenderizarTablaLL1(TABLA_LL1))
+        self._set_text_widget(self.first_follow_text, RenderizarFirstFollow(CONJUNTOS_FIRST, CONJUNTOS_FOLLOW))
+        self._set_text_widget(
+            self.summary,
+            "Selecciona un ejemplo o escribe tu código, elige el método y pulsa Analizar.\n\n"
+            "Activa 'Recuperar errores (E3)' para continuar el análisis tras cada error.",
+        )
 
     def _load_preset(self, index: int) -> None:
         _, code, _ = PROGRAMAS[index]
@@ -275,51 +370,15 @@ class SyntaxApp:
             self.tree.delete(item)
         for item in self.trace.get_children():
             self.trace.delete(item)
+        for item in self.err_tree.get_children():
+            self.err_tree.delete(item)
+        self._set_text_widget(self.err_detail, "")
+        self._err_objects = []
         if not keep_message:
             self._set_status("Listo para analizar.", ok=None)
             self._set_text_widget(self.summary, "")
 
-    def _analyze(self) -> None:
-        """Ejecuta análisis léxico+sintáctico y actualiza toda la UI."""
-        code = self.editor.get("1.0", "end-1c")
-        self._clear_runtime_views(keep_message=True)
-
-        errors, result = run_analysis(AnalysisRequest(code, self.method_var.get()))
-
-        if errors:
-            lines = ["Se detectaron errores léxicos. El análisis sintáctico no se ejecutó.", ""]
-            for error in errors:
-                lines.append(f"- Fila {error.fila}, columna {error.columna}: {error.mensaje}")
-            self._set_status("Errores léxicos detectados.", ok=False)
-            self._set_text_widget(self.summary, "\n".join(lines))
-            return
-
-        self._set_status(result.mensaje, ok=result.valido)
-        summary_lines = [
-            f"Método: {result.metodo}",
-            f"Estado: {'VÁLIDO' if result.valido else 'INVÁLIDO'}",
-            "",
-            result.mensaje,
-        ]
-        if result.arbol is not None:
-            summary_lines.extend(["", "Árbol (ASCII):", result.arbol.to_ascii()])
-        self._set_text_widget(self.summary, "\n".join(summary_lines))
-
-        if result.arbol is not None:
-            self._render_tree(result.arbol)
-
-        if result.trace:
-            for step in result.trace:
-                self.trace.insert(
-                    "",
-                    "end",
-                    values=(step.paso, step.pila, step.lookahead, step.accion, step.celda),
-                )
-        else:
-            self.trace.insert("", "end", values=("—", "—", "—", "Este método no usa pila explícita.", "—"))
-
-    def _node_text_and_tag(self, node: ParseNode):
-        """Devuelve texto y tag de color para un nodo del árbol."""
+    def _node_text_and_tag(self, node: NodoArbol):
         if node.symbol == "ε":
             return f"ε  {node.label}", "epsilon"
         if node.is_terminal:
@@ -331,11 +390,10 @@ class SyntaxApp:
         for child in self.tree.get_children(item):
             self._expand_all(child)
 
-    def _render_tree(self, node: ParseNode) -> None:
-        """Carga el ParseNode en el Treeview de Tkinter."""
+    def _render_tree(self, node: NodoArbol) -> None:
         self.tree.delete(*self.tree.get_children())
 
-        def add_node(parent: str, current: ParseNode) -> None:
+        def add_node(parent: str, current: NodoArbol) -> None:
             text, tag = self._node_text_and_tag(current)
             item = self.tree.insert(parent, "end", text=text, tags=(tag,))
             for child in current.children:
@@ -364,7 +422,11 @@ class SyntaxApp:
         widget.configure(state="disabled")
 
 
+# Alias de compatibilidad
+SyntaxApp = AplicacionSintactico
+
+
 if __name__ == "__main__":
     root = tk.Tk()
-    app = SyntaxApp(root)
+    app = AplicacionSintactico(root)
     root.mainloop()
