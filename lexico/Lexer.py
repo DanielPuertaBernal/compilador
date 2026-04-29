@@ -8,7 +8,7 @@ Uso:
     tokens, errores = lex.tokenizar()
 """
 
-from tokens import Token, TokenType, PALABRAS_RESERVADAS
+from lexico.Tokens import Token, TokenType, PALABRAS_RESERVADAS
 
 
 class ErrorLexico:
