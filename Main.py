@@ -10,22 +10,10 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
-T = {
-    "bg": "#F3F4F8",
-    "surface": "#FFFFFF",
-    "surface2": "#EBECF5",
-    "border": "#D0D5E2",
-    "header_bg": "#1C2840",
-    "text": "#28304A",
-    "text_dim": "#6E7A96",
-    "text_white": "#FFFFFF",
-    "accent": "#2563EB",
-    "accent2": "#6366F1",
-    "accent_light": "#DBEAFE",
-}
+from gui.Estilos import TEMA as T
 
 
-class LauncherApp:
+class AplicacionLanzador:
     """Menú principal para elegir qué interfaz abrir."""
 
     def __init__(self, root: tk.Tk):
@@ -51,6 +39,7 @@ class LauncherApp:
         self._build_ui()
         self.root.bind("1", lambda _event: self._select("lexer"))
         self.root.bind("2", lambda _event: self._select("parser"))
+        self.root.bind("3", lambda _event: self._select("parser3"))
         self.root.bind("<Escape>", lambda _event: self.root.destroy())
 
     def _build_ui(self) -> None:
@@ -114,12 +103,21 @@ class LauncherApp:
             command=lambda: self._select("parser"),
         ).pack(side="left", fill="both", expand=True, padx=(8, 0))
 
+        self._build_card(
+            cards,
+            title="Recuperación de Errores + IA",
+            subtitle="Entrega 3 · múltiples errores, modo pánico, sugerencias con IA",
+            button_text="Abrir analizador E3 (3)",
+            accent="#7C3AED",
+            command=lambda: self._select("parser3"),
+        ).pack(side="left", fill="both", expand=True, padx=(8, 0))
+
         footer = tk.Frame(body, bg=T["bg"])
         footer.pack(fill="x", pady=(18, 0))
 
         tk.Label(
             footer,
-            text="Atajos: 1 = Léxico · 2 = Sintáctico · Esc = Salir",
+            text="Atajos: 1 = Léxico · 2 = Sintáctico · 3 = Entrega 3 · Esc = Salir",
             bg=T["bg"],
             fg=T["text_dim"],
             font=self.f_hint,
@@ -194,10 +192,14 @@ class LauncherApp:
         self.root.destroy()
 
 
+# Alias de compatibilidad
+LauncherApp = AplicacionLanzador
+
+
 def show_launcher() -> Optional[str]:
     """Muestra el menú inicial y devuelve la vista elegida."""
     root = tk.Tk()
-    app = LauncherApp(root)
+    app = AplicacionLanzador(root)
     root.mainloop()
     return app.selection
 
@@ -207,16 +209,18 @@ def main() -> None:
     choice = show_launcher()
 
     if choice == "lexer":
-        from gui_tk import App
+        from gui.InterfazLexer import AplicacionLexer
 
         root = tk.Tk()
-        App(root)
+        AplicacionLexer(root)
         root.mainloop()
-    elif choice == "parser":
-        from gui_parser_tk import SyntaxApp
+    elif choice in ("parser", "parser3"):
+        from gui.InterfazSintactico import AplicacionSintactico
 
         root = tk.Tk()
-        SyntaxApp(root)
+        app = AplicacionSintactico(root)
+        if choice == "parser3":
+            app.recover_var.set(True)
         root.mainloop()
 
 
