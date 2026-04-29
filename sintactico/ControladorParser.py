@@ -1,40 +1,53 @@
 """
-parser_controller.py — lógica de análisis sintáctico desacoplada de la GUI
-Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
-
-Función pura que recibe código fuente y método, retorna resultados.
+parser_controller.py — Lógica de análisis sintáctico desacoplada de la GUI
+Compiladores — Entrega 2 / 3 | Lenguaje fuente → TypeScript
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
 
-from lexer import Lexer, ErrorLexico
-from parse_tree import ParseResult
-from parser_predictive import PredictiveParser
-from parser_recursive import RecursiveDescentParser
+from lexico.Lexer import Lexer, ErrorLexico
+from sintactico.ArbolSintactico import ResultadoAnalisis
+from sintactico.ParserPredictivo import AnalizadorPredictivo
+from sintactico.ParserRecursivo import AnalizadorRecursivo
+from typing import List
 
 
 @dataclass
-class AnalysisRequest:
-    code: str
-    method: str  # "recursivo" | "predictivo"
+class SolicitudAnalisis:
+    """Parámetros de una solicitud de análisis sintáctico."""
+    codigo: str
+    metodo: str        # "recursivo" | "predictivo"
+    recuperar: bool = False  # Entrega 3: activar recuperación de errores
 
 
-def run_analysis(request: AnalysisRequest) -> tuple:
+def EjecutarAnalisis(solicitud: SolicitudAnalisis) -> tuple:
     """
     Ejecuta el análisis léxico y sintáctico.
 
-    Retorna (errores_lexicos, parse_result):
-      - Si hay errores léxicos, parse_result es None.
-      - Si no hay errores léxicos, errores_lexicos es lista vacía.
+    Retorna (errores_lexicos, resultado_analisis):
+      - Si hay errores léxicos, resultado_analisis es None.
+      - Si no, errores_lexicos es lista vacía.
     """
-    tokens, lexical_errors = Lexer(request.code).tokenizar()
-    if lexical_errors:
-        return lexical_errors, None
+    tokens, errores_lexicos = Lexer(solicitud.codigo).tokenizar()
+    if errores_lexicos:
+        return errores_lexicos, None
 
-    if request.method == "recursivo":
-        result = RecursiveDescentParser(tokens).parse()
+    if solicitud.metodo == "recursivo":
+        resultado = AnalizadorRecursivo(tokens, recuperar=solicitud.recuperar).Analizar()
     else:
-        result = PredictiveParser(tokens).parse()
+        resultado = AnalizadorPredictivo(tokens, recuperar=solicitud.recuperar).Analizar()
 
-    return [], result
+    return [], resultado
+
+
+# ── Alias de compatibilidad hacia atrás ──────────────────────────────────────
+AnalysisRequest = SolicitudAnalisis
+
+
+def run_analysis(request) -> tuple:
+    """Alias de compatibilidad para código existente."""
+    return EjecutarAnalisis(SolicitudAnalisis(
+        codigo=request.code if hasattr(request, "code") else request.codigo,
+        metodo=request.method if hasattr(request, "method") else request.metodo,
+        recuperar=request.recover if hasattr(request, "recover") else request.recuperar,
+    ))

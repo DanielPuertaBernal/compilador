@@ -1,127 +1,208 @@
 """
-parser_recursive.py — analizador sintáctico descendente recursivo
-Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
+parser_recursive.py — Analizador sintáctico descendente recursivo
+Compiladores — Entrega 2 / 3 | Lenguaje fuente → TypeScript
+
+Entrega 3: parámetro recuperar=True activa recuperación en modo pánico.
+  Al detectar un error se registra, se descartan tokens hasta el siguiente
+  token de sincronización y el análisis continúa.
 """
 
 from typing import List
 
-from grammar import (
+from sintactico.RecuperacionErrores import TOKENS_SINCRONIZACION, MAX_ERRORES, SaltarASincronizacion
+from sintactico.Gramatica import (
     EOF_SYMBOL,
     GRAMMAR,
     EPSILON,
-    display_symbol,
-    is_nonterminal,
-    sanitize_nonterminal,
-    token_to_terminal,
+    MostrarSimbolo,
+    EsNoTerminal,
+    SanitizarNoTerminal,
+    TokenATerminal,
 )
-from parse_tree import ParseNode, ParseResult, ParserAbort, raise_syntax_error
-from parser_state import LL1_TABLE
-from tokens import Token
+from sintactico.ArbolSintactico import (
+    NodoArbol,
+    ResultadoAnalisis,
+    AbortarAnalisis,
+    ErrorSintactico,
+    ConstruirError,
+    LanzarErrorSintactico,
+    NumerarErrores,
+)
+from sintactico.EstadoParser import TABLA_LL1
+from lexico.Tokens import Token
 
 
-class RecursiveDescentParser:
+class AnalizadorRecursivo:
     """Parser descendente recursivo guiado por la gramática LL(1)."""
 
-    def __init__(self, tokens: List[Token]):
+    def __init__(self, tokens: List[Token], recuperar: bool = False):
         self.tokens = tokens
         self.pos = 0
-        self.table = LL1_TABLE
-        self._partial_root = None
+        self.tabla = TABLA_LL1
+        self.recuperar = recuperar
+        self._errores: List[ErrorSintactico] = []
+        self._raiz_parcial = None
 
-    def parse(self) -> ParseResult:
-        """Ejecuta el análisis recursivo y devuelve ParseResult."""
+    # ── API pública ───────────────────────────────────────────────────────────
+
+    def Analizar(self) -> ResultadoAnalisis:
         raiz = None
-        self._partial_root = None
+        self._raiz_parcial = None
+        self._errores = []
         try:
-            raiz = self.parse_programa()
-            self._partial_root = raiz
-            if token_to_terminal(self._current_token()) != EOF_SYMBOL:
-                self._raise_expected({EOF_SYMBOL}, "Se esperaba el fin del programa")
-            return ParseResult(metodo="recursivo", valido=True, arbol=raiz)
-        except ParserAbort as exc:
-            return ParseResult(
-                metodo="recursivo",
-                valido=False,
-                arbol=raiz or self._partial_root,
-                error=exc.error,
-            )
+            raiz = self.analizar_programa()
+            self._raiz_parcial = raiz
+            if TokenATerminal(self._TokenActual()) != EOF_SYMBOL:
+                self._ManejarError(
+                    {EOF_SYMBOL},
+                    "Se esperaba el fin del programa",
+                    "programa",
+                )
+        except AbortarAnalisis as exc:
+            self._errores.append(exc.error)
 
-    def _current_token(self) -> Token:
-        """Token en la posición actual o el último si se pasó del final."""
+        NumerarErrores(self._errores)
+        valido = len(self._errores) == 0
+        return ResultadoAnalisis(
+            metodo="recursivo",
+            valido=valido,
+            arbol=raiz or self._raiz_parcial,
+            errores=list(self._errores),
+        )
+
+    # Alias de compatibilidad
+    def parse(self) -> ResultadoAnalisis:
+        return self.Analizar()
+
+    # ── Navegación ────────────────────────────────────────────────────────────
+
+    def _TokenActual(self) -> Token:
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return self.tokens[-1]
 
-    def _lookahead(self) -> str:
-        """Terminal correspondiente al token actual."""
-        return token_to_terminal(self._current_token())
+    def _Lookahead(self) -> str:
+        return TokenATerminal(self._TokenActual())
 
-    def _parse_nonterminal(self, nonterminal: str) -> ParseNode:
-        """Expande un no-terminal consultando la tabla LL(1)."""
-        node = ParseNode(display_symbol(nonterminal))
-        if nonterminal == "programa" and self._partial_root is None:
-            self._partial_root = node
+    # ── Núcleo de análisis ────────────────────────────────────────────────────
 
-        lookahead = self._lookahead()
-        production = self.table.get(nonterminal, {}).get(lookahead)
-        if production is None:
-            expected = sorted(self.table.get(nonterminal, {}).keys())
-            mensaje = f"No se puede expandir {display_symbol(nonterminal)} con el token actual"
-            self._raise_expected(expected, mensaje)
-        for symbol in production:
-            if symbol == EPSILON:
-                node.add_child(ParseNode(EPSILON, is_terminal=True))
+    def _AnalizarNoTerminal(self, nonterminal: str) -> NodoArbol:
+        nodo = NodoArbol(MostrarSimbolo(nonterminal))
+        if nonterminal == "programa" and self._raiz_parcial is None:
+            self._raiz_parcial = nodo
+
+        lookahead = self._Lookahead()
+        produccion = self.tabla.get(nonterminal, {}).get(lookahead)
+
+        if produccion is None:
+            esperado = sorted(self.tabla.get(nonterminal, {}).keys())
+            self._ManejarError(
+                esperado,
+                f"No se puede expandir {MostrarSimbolo(nonterminal)} con el token actual",
+                nonterminal,
+            )
+            return nodo
+
+        for simbolo in produccion:
+            if len(self._errores) >= MAX_ERRORES:
+                break
+            if simbolo == EPSILON:
+                nodo.AgregarHijo(NodoArbol(EPSILON, es_terminal=True))
                 continue
-
-            if is_nonterminal(symbol):
-                parse_method = getattr(self, f"parse_{sanitize_nonterminal(symbol)}")
-                child = parse_method()
-                node.add_child(child)
+            if EsNoTerminal(simbolo):
+                metodo = getattr(self, f"analizar_{SanitizarNoTerminal(simbolo)}")
+                hijo = metodo()
+                nodo.AgregarHijo(hijo)
             else:
-                token = self._match_terminal(symbol)
-                node.add_child(ParseNode(symbol, token=token, is_terminal=True))
+                tok = self._EmparejamientoTerminal(simbolo, nonterminal)
+                nodo.AgregarHijo(NodoArbol(simbolo, token=tok, es_terminal=True))
 
-        return node
+        return nodo
 
-    def _match_terminal(self, expected_terminal: str) -> Token:
-        """Consume el token actual si coincide con el terminal esperado."""
-        current = self._current_token()
-        actual_terminal = token_to_terminal(current)
-        if actual_terminal != expected_terminal:
-            mensaje = f"Se esperaba el terminal '{expected_terminal}'"
-            self._raise_expected([expected_terminal], mensaje)
+    def _EmparejamientoTerminal(self, terminal_esperado: str, nonterminal: str = "") -> Token:
+        actual = self._TokenActual()
+        if TokenATerminal(actual) != terminal_esperado:
+            self._ManejarError(
+                [terminal_esperado],
+                f"Se esperaba '{terminal_esperado}'",
+                nonterminal,
+            )
+            return self._TokenActual()
         self.pos += 1
-        return current
+        return actual
 
-    def _raise_expected(self, expected: List[str], mensaje: str) -> None:
-        raise_syntax_error(expected, mensaje, self._current_token())
+    # ── Manejo de errores y recuperación ─────────────────────────────────────
+
+    def _ManejarError(self, esperado, mensaje: str, nonterminal: str = "") -> None:
+        """
+        Registra el error. En modo recuperación salta al siguiente token de
+        sincronización; sin recuperación lanza AbortarAnalisis.
+        """
+        actual = self._TokenActual()
+        err = ConstruirError(list(esperado), mensaje, actual, nonterminal=nonterminal)
+
+        if not self.recuperar:
+            raise AbortarAnalisis(err)
+
+        if not self._errores or self._errores[-1].fila != err.fila or self._errores[-1].columna != err.columna:
+            self._errores.append(err)
+
+        if len(self._errores) >= MAX_ERRORES:
+            return
+
+        self.pos = SaltarASincronizacion(self.tokens, self.pos)
+
+    def _LanzarEsperado(self, esperado: List[str], mensaje: str, nonterminal: str = "") -> None:
+        LanzarErrorSintactico(esperado, mensaje, self._TokenActual(), nonterminal=nonterminal)
+
+    # Aliases para compatibilidad con código existente
+    def _parse_nonterminal(self, nt):
+        return self._AnalizarNoTerminal(nt)
+
+    def _match_terminal(self, terminal, nt=""):
+        return self._EmparejamientoTerminal(terminal, nt)
+
+    def _handle_error(self, esperado, mensaje, nt=""):
+        return self._ManejarError(esperado, mensaje, nt)
+
+    def _current_token(self):
+        return self._TokenActual()
+
+    def _lookahead(self):
+        return self._Lookahead()
 
 
-def _attach_parse_methods() -> None:
-    """Genera dinámicamente un método parse_<NT> por cada no-terminal."""
-    def make_method(nonterminal: str):
-        def method(self):
-            return self._parse_nonterminal(nonterminal)
-
-        method.__name__ = f"parse_{sanitize_nonterminal(nonterminal)}"
-        method.__doc__ = f"Reconoce la producción {display_symbol(nonterminal)}."
-        return method
+def _AgregarMetodosAnalisis() -> None:
+    """Genera dinámicamente un método analizar_<NT> por cada no-terminal."""
+    def _crear_metodo(nonterminal: str):
+        def metodo(self):
+            return self._AnalizarNoTerminal(nonterminal)
+        nombre = f"analizar_{SanitizarNoTerminal(nonterminal)}"
+        metodo.__name__ = nombre
+        metodo.__doc__ = f"Reconoce la producción {MostrarSimbolo(nonterminal)}."
+        return metodo
 
     for nonterminal in GRAMMAR:
-        method_name = f"parse_{sanitize_nonterminal(nonterminal)}"
-        if hasattr(RecursiveDescentParser, method_name):
-            continue
-        setattr(RecursiveDescentParser, method_name, make_method(nonterminal))
+        nombre_metodo = f"analizar_{SanitizarNoTerminal(nonterminal)}"
+        # También generar alias parse_<NT> para compatibilidad
+        nombre_alias = f"parse_{SanitizarNoTerminal(nonterminal)}"
+        if not hasattr(AnalizadorRecursivo, nombre_metodo):
+            setattr(AnalizadorRecursivo, nombre_metodo, _crear_metodo(nonterminal))
+        if not hasattr(AnalizadorRecursivo, nombre_alias):
+            setattr(AnalizadorRecursivo, nombre_alias, _crear_metodo(nonterminal))
 
 
-_attach_parse_methods()
+_AgregarMetodosAnalisis()
+
+# Alias de compatibilidad hacia atrás
+RecursiveDescentParser = AnalizadorRecursivo
 
 
 if __name__ == "__main__":
     from lexer import Lexer
 
     codigo = """funcion factorial(n: entero): entero
-  si n == 0 entonces
+  si n == 0
     retornar 1
   sino
     retornar n * factorial(n - 1)
@@ -129,10 +210,10 @@ if __name__ == "__main__":
 fin_funcion"""
     tokens, errores = Lexer(codigo).tokenizar()
     if errores:
-        for error in errores:
-            print(error)
+        for e in errores:
+            print(e)
     else:
-        resultado = RecursiveDescentParser(tokens).parse()
-        print(resultado.mensaje)
+        resultado = AnalizadorRecursivo(tokens, recuperar=True).Analizar()
+        print(resultado.FormatearReporteErrores() if not resultado.valido else resultado.mensaje)
         if resultado.arbol is not None:
-            print(resultado.arbol.to_ascii())
+            print(resultado.arbol.ComoTextoAscii())

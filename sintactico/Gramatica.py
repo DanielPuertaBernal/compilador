@@ -1,19 +1,17 @@
 """
-grammar.py — gramática LL(1) del lenguaje fuente
+grammar.py — Gramática LL(1) del lenguaje fuente
 Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
 """
 
 from typing import Dict, List, Sequence, Set
 
-from tokens import Token, TokenType
+from lexico.Tokens import Token, TokenType
 
 EPSILON = "ε"
 EOF_SYMBOL = "$"
 START_SYMBOL = "programa"
 
-# Gramática factorizada para permitir tabla LL(1) sin conflictos.
-# Nota: se introdujo `miembro_base` para resolver la ambigüedad real en
-# `miembro` cuando el lookahead es `publico` o `privado`.
+# Gramática factorizada para tabla LL(1) sin conflictos.
 GRAMMAR: Dict[str, List[List[str]]] = {
     "programa": [["declaracion", "programa"], [EPSILON]],
     "declaracion": [["def_clase"], ["def_funcion"], ["sentencia_no_retorno"]],
@@ -82,27 +80,27 @@ GRAMMAR: Dict[str, List[List[str]]] = {
     "tipo": [["entero"], ["real"], ["cadena"], ["booleano"], ["IDENTIFICADOR"]],
 }
 
-NON_TERMINALS: Set[str] = set(GRAMMAR.keys())
+NO_TERMINALES: Set[str] = set(GRAMMAR.keys())
 
 
-def is_nonterminal(symbol: str) -> bool:
+def EsNoTerminal(simbolo: str) -> bool:
     """Verdadero si el símbolo es un no-terminal de la gramática."""
-    return symbol in NON_TERMINALS
+    return simbolo in NO_TERMINALES
 
 
-def display_symbol(symbol: str) -> str:
+def MostrarSimbolo(simbolo: str) -> str:
     """Envuelve no-terminales en <> para mostrar."""
-    if is_nonterminal(symbol):
-        return f"<{symbol}>"
-    return symbol
+    if EsNoTerminal(simbolo):
+        return f"<{simbolo}>"
+    return simbolo
 
 
-def sanitize_nonterminal(symbol: str) -> str:
-    """Reemplaza guiones por _ para nombre de método válido."""
-    return symbol.replace("-", "_")
+def SanitizarNoTerminal(simbolo: str) -> str:
+    """Reemplaza guiones por _ para nombre de método Python válido."""
+    return simbolo.replace("-", "_")
 
 
-def token_to_terminal(token: Token) -> str:
+def TokenATerminal(token: Token) -> str:
     """Convierte un Token del lexer al terminal que usa la gramática."""
     if token.tipo == TokenType.EOF:
         return EOF_SYMBOL
@@ -118,89 +116,33 @@ def token_to_terminal(token: Token) -> str:
     return str(token.tipo.value)
 
 
-def get_terminals(grammar: Dict[str, List[List[str]]] = GRAMMAR) -> List[str]:
+def ObtenerTerminales(gramatica: Dict[str, List[List[str]]] = GRAMMAR) -> List[str]:
     """Devuelve la lista ordenada de terminales presentes en la gramática."""
-    seen = []
-    for productions in grammar.values():
-        for production in productions:
-            for symbol in production:
-                if symbol in (EPSILON, EOF_SYMBOL):
+    vistos: List[str] = []
+    for producciones in gramatica.values():
+        for produccion in producciones:
+            for simbolo in produccion:
+                if simbolo in (EPSILON, EOF_SYMBOL):
                     continue
-                if is_nonterminal(symbol):
+                if EsNoTerminal(simbolo):
                     continue
-                if symbol not in seen:
-                    seen.append(symbol)
-    if EOF_SYMBOL not in seen:
-        seen.append(EOF_SYMBOL)
-    return seen
+                if simbolo not in vistos:
+                    vistos.append(simbolo)
+    if EOF_SYMBOL not in vistos:
+        vistos.append(EOF_SYMBOL)
+    return vistos
 
 
-def format_production(left: str, right: Sequence[str]) -> str:
+def FormatearProduccion(izquierda: str, derecha: Sequence[str]) -> str:
     """Formatea una producción como cadena legible: <NT> → α β."""
-    return f"<{left}> → {' '.join(right)}"
+    return f"<{izquierda}> → {' '.join(derecha)}"
 
 
-PROGRAMAS: list[tuple[str, str, bool]] = [
-    (
-        "Factorial",
-        """funcion factorial(n: entero): entero
-  si n == 0 entonces
-    retornar 1
-  sino
-    retornar n * factorial(n - 1)
-  fin_si
-fin_funcion
-var resultado: entero = factorial(5)""",
-        True,
-    ),
-    (
-        "Busqueda lineal",
-        """funcion buscar(valor: entero): booleano
-  var encontrado: booleano = falso
-  var limite: entero = 10
-  para i desde 0 hasta limite paso 1 hacer
-    si i == valor entonces
-      encontrado = verdadero
-    fin_si
-  fin_para
-  retornar encontrado
-fin_funcion""",
-        True,
-    ),
-    (
-        "Clase Rectangulo",
-        """clase Rectangulo
-  privado ancho: real
-  privado alto: real
-  funcion constructor(a: real, h: real)
-    este.ancho = a
-    este.alto = h
-  fin_funcion
-  funcion area(): real
-    retornar este.ancho * este.alto
-  fin_funcion
-fin_clase
-var r: Rectangulo = nuevo Rectangulo(4.0, 4.0)""",
-        True,
-    ),
-    (
-        "Mientras + Logicos",
-        """var contador: entero = 0
-var activo: booleano = verdadero
-mientras contador < 100 y activo hacer
-  si contador % 2 == 0 entonces
-    contador = contador + 1
-  sino
-    activo = falso
-  fin_si
-fin_mientras""",
-        True,
-    ),
-    (
-        "Retornar vacio",
-        """funcion saludar()
-  retornar
-fin_funcion""",
-        True,
-    ),
-]
+# ── Alias de compatibilidad hacia atrás (usado por ll1_table.py y parsers) ──
+is_nonterminal = EsNoTerminal
+display_symbol = MostrarSimbolo
+sanitize_nonterminal = SanitizarNoTerminal
+token_to_terminal = TokenATerminal
+get_terminals = ObtenerTerminales
+format_production = FormatearProduccion
+NON_TERMINALS = NO_TERMINALES

@@ -1,20 +1,25 @@
 """
-parser_state.py — estado global de la gramática LL(1)
+parser_state.py — Estado global de la gramática LL(1)
 Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
 
 Calcula FIRST, FOLLOW y la tabla LL(1) una sola vez al importarse.
 Todos los módulos que necesiten estos datos deben importarlos desde aquí.
 """
 
-from ll1_table import build_ll1_table, compute_first_sets, compute_follow_sets
+from sintactico.TablaLL1 import CalcularConjuntosFirst, CalcularConjuntosFollow, ConstruirTablaLL1
 
 
-def _build():
+def _Construir():
     """Calcula FIRST, FOLLOW y tabla LL(1) una sola vez al importar."""
-    first = compute_first_sets()
-    follow = compute_follow_sets(first_sets=first)
-    table = build_ll1_table(first_sets=first, follow_sets=follow)
-    return first, follow, table
+    first = CalcularConjuntosFirst()
+    follow = CalcularConjuntosFollow(conjuntos_first=first)
+    tabla = ConstruirTablaLL1(conjuntos_first=first, conjuntos_follow=follow)
+    return first, follow, tabla
 
 
-FIRST_SETS, FOLLOW_SETS, LL1_TABLE = _build()
+CONJUNTOS_FIRST, CONJUNTOS_FOLLOW, TABLA_LL1 = _Construir()
+
+# Alias de compatibilidad hacia atrás
+FIRST_SETS = CONJUNTOS_FIRST
+FOLLOW_SETS = CONJUNTOS_FOLLOW
+LL1_TABLE = TABLA_LL1

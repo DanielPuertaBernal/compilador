@@ -1,183 +1,201 @@
 """
-ll1_table.py — cálculo de FIRST, FOLLOW y tabla LL(1)
+ll1_table.py — Cálculo de conjuntos FIRST, FOLLOW y tabla LL(1)
 Compiladores — Entrega 2 | Lenguaje fuente → TypeScript
 """
 
 from typing import Dict, List, Sequence, Set
 
-from grammar import EPSILON, EOF_SYMBOL, GRAMMAR, START_SYMBOL, display_symbol, format_production, get_terminals, is_nonterminal
+from sintactico.Gramatica import (
+    EPSILON,
+    EOF_SYMBOL,
+    GRAMMAR,
+    START_SYMBOL,
+    MostrarSimbolo,
+    FormatearProduccion,
+    ObtenerTerminales,
+    EsNoTerminal,
+)
 
-FirstSets = Dict[str, Set[str]]
-FollowSets = Dict[str, Set[str]]
-LL1Table = Dict[str, Dict[str, List[str]]]
+ConjuntosFirst = Dict[str, Set[str]]
+ConjuntosFollow = Dict[str, Set[str]]
+TablaLL1 = Dict[str, Dict[str, List[str]]]
 
 
-def first_of_sequence(sequence: Sequence[str], first_sets: FirstSets) -> Set[str]:
+def _PrimerosDeSecuencia(secuencia: Sequence[str], conjuntos_first: ConjuntosFirst) -> Set[str]:
     """Calcula FIRST de una secuencia de símbolos."""
-    if not sequence or sequence == [EPSILON]:
+    if not secuencia or secuencia == [EPSILON]:
         return {EPSILON}
 
-    result: Set[str] = set()
-    nullable_prefix = True
+    resultado: Set[str] = set()
+    prefijo_nullable = True
 
-    for symbol in sequence:
-        if symbol == EPSILON:
-            result.add(EPSILON)
+    for simbolo in secuencia:
+        if simbolo == EPSILON:
+            resultado.add(EPSILON)
             break
-
-        if is_nonterminal(symbol):
-            symbol_first = set(first_sets[symbol])
-            result.update(symbol_first - {EPSILON})
-            if EPSILON not in symbol_first:
-                nullable_prefix = False
+        if EsNoTerminal(simbolo):
+            first_simbolo = set(conjuntos_first[simbolo])
+            resultado.update(first_simbolo - {EPSILON})
+            if EPSILON not in first_simbolo:
+                prefijo_nullable = False
                 break
         else:
-            result.add(symbol)
-            nullable_prefix = False
+            resultado.add(simbolo)
+            prefijo_nullable = False
             break
 
-    if nullable_prefix:
-        result.add(EPSILON)
+    if prefijo_nullable:
+        resultado.add(EPSILON)
 
-    return result
+    return resultado
 
 
-def compute_first_sets(grammar: Dict[str, List[List[str]]] = GRAMMAR) -> FirstSets:
+def CalcularConjuntosFirst(gramatica: Dict[str, List[List[str]]] = GRAMMAR) -> ConjuntosFirst:
     """Calcula los conjuntos FIRST de todos los no-terminales."""
-    first_sets: FirstSets = {nonterminal: set() for nonterminal in grammar}
-    changed = True
+    conjuntos: ConjuntosFirst = {nt: set() for nt in gramatica}
+    cambio = True
 
-    while changed:
-        changed = False
-        for left, productions in grammar.items():
-            for production in productions:
-                before = len(first_sets[left])
-                first_sets[left].update(first_of_sequence(production, first_sets))
-                if len(first_sets[left]) != before:
-                    changed = True
+    while cambio:
+        cambio = False
+        for izq, producciones in gramatica.items():
+            for produccion in producciones:
+                antes = len(conjuntos[izq])
+                conjuntos[izq].update(_PrimerosDeSecuencia(produccion, conjuntos))
+                if len(conjuntos[izq]) != antes:
+                    cambio = True
 
-    return first_sets
+    return conjuntos
 
 
-def compute_follow_sets(
-    grammar: Dict[str, List[List[str]]] = GRAMMAR,
-    start_symbol: str = START_SYMBOL,
-    first_sets: FirstSets = None,
-) -> FollowSets:
+def CalcularConjuntosFollow(
+    gramatica: Dict[str, List[List[str]]] = GRAMMAR,
+    simbolo_inicio: str = START_SYMBOL,
+    conjuntos_first: ConjuntosFirst = None,
+) -> ConjuntosFollow:
     """Calcula los conjuntos FOLLOW de todos los no-terminales."""
-    if first_sets is None:
-        first_sets = compute_first_sets(grammar)
+    if conjuntos_first is None:
+        conjuntos_first = CalcularConjuntosFirst(gramatica)
 
-    follow_sets: FollowSets = {nonterminal: set() for nonterminal in grammar}
-    follow_sets[start_symbol].add(EOF_SYMBOL)
+    conjuntos: ConjuntosFollow = {nt: set() for nt in gramatica}
+    conjuntos[simbolo_inicio].add(EOF_SYMBOL)
 
-    changed = True
-    while changed:
-        changed = False
-        for left, productions in grammar.items():
-            for production in productions:
-                for index, symbol in enumerate(production):
-                    if not is_nonterminal(symbol):
+    cambio = True
+    while cambio:
+        cambio = False
+        for izq, producciones in gramatica.items():
+            for produccion in producciones:
+                for indice, simbolo in enumerate(produccion):
+                    if not EsNoTerminal(simbolo):
                         continue
+                    sufijo = produccion[indice + 1:]
+                    first_sufijo = _PrimerosDeSecuencia(sufijo, conjuntos_first)
+                    antes = len(conjuntos[simbolo])
+                    conjuntos[simbolo].update(first_sufijo - {EPSILON})
+                    if not sufijo or EPSILON in first_sufijo:
+                        conjuntos[simbolo].update(conjuntos[izq])
+                    if len(conjuntos[simbolo]) != antes:
+                        cambio = True
 
-                    suffix = production[index + 1 :]
-                    suffix_first = first_of_sequence(suffix, first_sets)
-                    before = len(follow_sets[symbol])
-                    follow_sets[symbol].update(suffix_first - {EPSILON})
-
-                    if not suffix or EPSILON in suffix_first:
-                        follow_sets[symbol].update(follow_sets[left])
-
-                    if len(follow_sets[symbol]) != before:
-                        changed = True
-
-    return follow_sets
+    return conjuntos
 
 
-def build_ll1_table(
-    grammar: Dict[str, List[List[str]]] = GRAMMAR,
-    first_sets: FirstSets = None,
-    follow_sets: FollowSets = None,
-) -> LL1Table:
+def ConstruirTablaLL1(
+    gramatica: Dict[str, List[List[str]]] = GRAMMAR,
+    conjuntos_first: ConjuntosFirst = None,
+    conjuntos_follow: ConjuntosFollow = None,
+) -> TablaLL1:
     """Construye la tabla de análisis LL(1) a partir de FIRST/FOLLOW."""
-    if first_sets is None:
-        first_sets = compute_first_sets(grammar)
-    if follow_sets is None:
-        follow_sets = compute_follow_sets(grammar, START_SYMBOL, first_sets)
+    if conjuntos_first is None:
+        conjuntos_first = CalcularConjuntosFirst(gramatica)
+    if conjuntos_follow is None:
+        conjuntos_follow = CalcularConjuntosFollow(gramatica, START_SYMBOL, conjuntos_first)
 
-    table: LL1Table = {nonterminal: {} for nonterminal in grammar}
+    tabla: TablaLL1 = {nt: {} for nt in gramatica}
 
-    for left, productions in grammar.items():
-        for production in productions:
-            production_first = first_of_sequence(production, first_sets)
+    for izq, producciones in gramatica.items():
+        for produccion in producciones:
+            first_produccion = _PrimerosDeSecuencia(produccion, conjuntos_first)
 
-            for terminal in production_first - {EPSILON}:
-                existing = table[left].get(terminal)
-                if existing is not None and existing != production:
+            for terminal in first_produccion - {EPSILON}:
+                existente = tabla[izq].get(terminal)
+                if existente is not None and existente != produccion:
                     raise ValueError(
-                        f"Conflicto LL(1) en M[{left}, {terminal}] entre {existing} y {production}"
+                        f"Conflicto LL(1) en M[{izq}, {terminal}] entre {existente} y {produccion}"
                     )
-                table[left][terminal] = production
+                tabla[izq][terminal] = produccion
 
-            if EPSILON in production_first:
-                for terminal in follow_sets[left]:
-                    existing = table[left].get(terminal)
-                    if existing is not None and existing != production:
+            if EPSILON in first_produccion:
+                for terminal in conjuntos_follow[izq]:
+                    existente = tabla[izq].get(terminal)
+                    if existente is not None and existente != produccion:
                         raise ValueError(
-                            f"Conflicto LL(1) en M[{left}, {terminal}] entre {existing} y {production}"
+                            f"Conflicto LL(1) en M[{izq}, {terminal}] entre {existente} y {produccion}"
                         )
-                    table[left][terminal] = production
+                    tabla[izq][terminal] = produccion
 
-    return table
+    return tabla
 
 
-def render_first_follow_text(first_sets: FirstSets, follow_sets: FollowSets) -> str:
+def RenderizarFirstFollow(
+    conjuntos_first: ConjuntosFirst,
+    conjuntos_follow: ConjuntosFollow,
+) -> str:
     """Genera texto plano con los conjuntos FIRST y FOLLOW."""
-    lines = ["CONJUNTOS FIRST Y FOLLOW", "=" * 72, ""]
-    for nonterminal in GRAMMAR:
-        first_text = ", ".join(sorted(first_sets[nonterminal]))
-        follow_text = ", ".join(sorted(follow_sets[nonterminal]))
-        lines.append(f"{display_symbol(nonterminal)}")
-        lines.append(f"  FIRST  = {{ {first_text} }}")
-        lines.append(f"  FOLLOW = {{ {follow_text} }}")
-        lines.append("")
-    return "\n".join(lines).rstrip()
+    lineas = ["CONJUNTOS FIRST Y FOLLOW", "=" * 72, ""]
+    for nt in GRAMMAR:
+        first_txt = ", ".join(sorted(conjuntos_first[nt]))
+        follow_txt = ", ".join(sorted(conjuntos_follow[nt]))
+        lineas.append(f"{MostrarSimbolo(nt)}")
+        lineas.append(f"  FIRST  = {{ {first_txt} }}")
+        lineas.append(f"  FOLLOW = {{ {follow_txt} }}")
+        lineas.append("")
+    return "\n".join(lineas).rstrip()
 
 
-def render_ll1_table(table: LL1Table) -> str:
+def RenderizarTablaLL1(tabla: TablaLL1) -> str:
     """Genera texto plano con la tabla LL(1) formateada."""
-    terminals = get_terminals()
-    columns = ["No terminal"] + terminals
+    terminales = ObtenerTerminales()
+    columnas = ["No terminal"] + terminales
 
-    widths = {column: max(len(column), 12) for column in columns}
-    rendered_rows = []
+    anchos = {col: max(len(col), 12) for col in columnas}
+    filas_renderizadas = []
 
-    for nonterminal in GRAMMAR:
-        row = {"No terminal": display_symbol(nonterminal)}
-        widths["No terminal"] = max(widths["No terminal"], len(row["No terminal"]))
-        for terminal in terminals:
-            production = table.get(nonterminal, {}).get(terminal)
-            cell = ""
-            if production is not None:
-                cell = format_production(nonterminal, production)
-            row[terminal] = cell
-            widths[terminal] = max(widths[terminal], len(cell), len(terminal))
-        rendered_rows.append(row)
+    for nt in GRAMMAR:
+        fila = {"No terminal": MostrarSimbolo(nt)}
+        anchos["No terminal"] = max(anchos["No terminal"], len(fila["No terminal"]))
+        for terminal in terminales:
+            produccion = tabla.get(nt, {}).get(terminal)
+            celda = FormatearProduccion(nt, produccion) if produccion is not None else ""
+            fila[terminal] = celda
+            anchos[terminal] = max(anchos[terminal], len(celda), len(terminal))
+        filas_renderizadas.append(fila)
 
-    header = " | ".join(column.ljust(widths[column]) for column in columns)
-    separator = "-+-".join("-" * widths[column] for column in columns)
-    lines = [header, separator]
+    encabezado = " | ".join(col.ljust(anchos[col]) for col in columnas)
+    separador = "-+-".join("-" * anchos[col] for col in columnas)
+    lineas = [encabezado, separador]
 
-    for row in rendered_rows:
-        lines.append(" | ".join(row[column].ljust(widths[column]) for column in columns))
+    for fila in filas_renderizadas:
+        lineas.append(" | ".join(fila[col].ljust(anchos[col]) for col in columnas))
 
-    return "\n".join(lines)
+    return "\n".join(lineas)
+
+
+# ── Alias de compatibilidad hacia atrás ──────────────────────────────────────
+first_of_sequence = _PrimerosDeSecuencia
+compute_first_sets = CalcularConjuntosFirst
+compute_follow_sets = CalcularConjuntosFollow
+build_ll1_table = ConstruirTablaLL1
+render_first_follow_text = RenderizarFirstFollow
+render_ll1_table = RenderizarTablaLL1
+FirstSets = ConjuntosFirst
+FollowSets = ConjuntosFollow
+LL1Table = TablaLL1
 
 
 if __name__ == "__main__":
-    first_sets = compute_first_sets()
-    follow_sets = compute_follow_sets(first_sets=first_sets)
-    table = build_ll1_table(first_sets=first_sets, follow_sets=follow_sets)
-    print(render_first_follow_text(first_sets, follow_sets))
+    fs = CalcularConjuntosFirst()
+    fol = CalcularConjuntosFollow(conjuntos_first=fs)
+    tabla = ConstruirTablaLL1(conjuntos_first=fs, conjuntos_follow=fol)
+    print(RenderizarFirstFollow(fs, fol))
     print()
-    print(render_ll1_table(table))
+    print(RenderizarTablaLL1(tabla))
