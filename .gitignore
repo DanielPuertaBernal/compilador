@@ -1,3 +1,9 @@
+# Entrega 3 — modelo IA entrenado (se regenera automáticamente)
+suggestion_model.json
+
+# Claude Code
+.claude/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

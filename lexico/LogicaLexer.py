@@ -6,9 +6,9 @@ Compiladores — Entrega 1 | Lenguaje fuente → TypeScript
 from dataclasses import dataclass, field
 from typing import Optional
 
-from tokens import Token, TokenType
-from lexer import Lexer
-from grammar import PROGRAMAS as _PROGRAMAS_FULL
+from lexico.Tokens import Token, TokenType
+from lexico.Lexer import Lexer
+from gui.Programas import PROGRAMAS as _PROGRAMAS_FULL
 
 
 # ── Programas predefinidos (subconjunto léxico: nombre, código) ───
@@ -31,7 +31,7 @@ _DELIMITADORES = {TokenType.PAREN_IZQ, TokenType.PAREN_DER,
                   TokenType.COMA, TokenType.DOS_PUNTOS, TokenType.PUNTO}
 
 
-def categoria_token(tok: Token) -> str:
+def CategoriaToken(tok: Token) -> str:
     """Clasifica un TokenType en su categoría visual para la UI."""
     if tok.tipo == TokenType.ERROR:           return "error"
     if tok.tipo == TokenType.IDENTIFICADOR:   return "identificador"
@@ -46,13 +46,21 @@ def categoria_token(tok: Token) -> str:
     return "reservada"
 
 
+# Alias de compatibilidad
+categoria_token = CategoriaToken
+
+
 # ── Segmento de código fuente ─────────────────────────────────────
 
 @dataclass
-class Segmento:
+class SegmentoCodigo:
     texto:       str
     token:       Optional[Token]
     char_inicio: int
+
+
+# Alias de compatibilidad
+Segmento = SegmentoCodigo
 
 
 # ── Estado principal ──────────────────────────────────────────────
@@ -92,13 +100,13 @@ class EstadoLexer:
             ci      += tok.columna - 1          # ← .columna correcto
             if ci > pos:
                 self.segmentos.append(
-                    Segmento(texto=src[pos:ci], token=None, char_inicio=pos))
+                    SegmentoCodigo(texto=src[pos:ci], token=None, char_inicio=pos))
             self.segmentos.append(
-                Segmento(texto=tok.lexema, token=tok, char_inicio=ci))
+                SegmentoCodigo(texto=tok.lexema, token=tok, char_inicio=ci))
             pos = ci + len(tok.lexema)
         if pos < len(src):
             self.segmentos.append(
-                Segmento(texto=src[pos:], token=None, char_inicio=pos))
+                SegmentoCodigo(texto=src[pos:], token=None, char_inicio=pos))
 
     # ── Acciones ─────────────────────────────────────────────
 

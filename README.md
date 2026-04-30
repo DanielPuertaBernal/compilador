@@ -1,148 +1,287 @@
 # Compilador Fuente-a-Fuente — Español a TypeScript
-**Teoría de Compiladores — Trabajo de curso | Entrega 2**
+**Teoría de Compiladores — Trabajo de curso | Entregas 1, 2 y 3**
 
-Proyecto de curso para un lenguaje fuente con palabras reservadas en español y análisis sintáctico sobre una gramática LL(1), reutilizando el analizador léxico construido en la Entrega 1.
+Proyecto de curso para un lenguaje fuente con palabras reservadas en español, análisis léxico, sintáctico y recuperación de errores con sugerencias generadas por IA.
 
 ---
 
 ## Resumen del proyecto
 
-- **Lenguaje fuente:** imperativo y orientado a objetos, con sintaxis en español
-- **Lenguaje de destino:** TypeScript
-- **Método 1:** parser descendente recursivo con árbol sintáctico
-- **Método 2:** parser predictivo LL(1) con tabla, pila y traza paso a paso
+- **Lenguaje fuente:** imperativo y orientado a objetos, sintaxis en español
+- **Lenguaje destino:** TypeScript
+- **Entrega 1:** analizador léxico con visualización interactiva
+- **Entrega 2:** parser recursivo y predictivo LL(1) con árbol sintáctico
+- **Entrega 3:** recuperación de errores en modo pánico + sugerencias con IA (Naive Bayes)
 
 ## Documentación incluida
 
 | Documento | Contenido |
 |---|---|
 | [Requisitos del Lenguaje Origen](Documentacion/RequisitosLenguajeOrigen.md) | Vocabulario, operadores, delimitadores y equivalencias con TypeScript |
-| [Gramática BNF](Documentacion/BNF.md) | Gramática final en BNF, conjuntos FIRST/FOLLOW, verificación LL(1) y ajustes realizados |
-| `README.md` | Instalación, ejecución y resumen de entregables |
-
-## Entregables de la Entrega 2
-
-| Entregable | Evidencia en el repositorio |
-|---|---|
-| **E1 — Código fuente Python** | `lexer.py`, `parser_recursive.py`, `parser_predictive.py`, `gui_parser_tk.py` y módulos auxiliares |
-| **E2 — Tabla LL(1) calculada** | `ll1_table.py`, pestañas de tabla y FIRST/FOLLOW en `gui_parser_tk.py`, §4 de `Documentacion/BNF.md` |
-| **E3 — README actualizado** | Este archivo |
-| **E5 — Ajustes a la gramática** | §8 de `Documentacion/BNF.md` |
+| [Gramática BNF](Documentacion/BNF.md) | Gramática LL(1) en BNF, conjuntos FIRST/FOLLOW, verificación y ajustes |
+| `README.md` | Instalación, ejecución, estructura y descripción del módulo de IA |
 
 ---
 
-## Código fuente incluido
+## Estructura del proyecto
 
-### Archivos
+```
+compilador/
+├── Main.py                        # Menú principal
+├── lexico/
+│   ├── Tokens.py                  # Enum TokenType (33 tokens) y dataclass Token
+│   ├── Lexer.py                   # Analizador léxico reutilizable
+│   └── LogicaLexer.py             # EstadoLexer — lógica de estado para la GUI léxica
+├── sintactico/
+│   ├── Gramatica.py               # Gramática LL(1) factorizada y funciones auxiliares
+│   ├── TablaLL1.py                # Cálculo de FIRST, FOLLOW y tabla LL(1)
+│   ├── EstadoParser.py            # Instancia global de tabla y conjuntos
+│   ├── ArbolSintactico.py         # NodoArbol, ResultadoAnalisis, ErrorSintactico
+│   ├── RecuperacionErrores.py     # Tokens de sincronización y salto en modo pánico
+│   ├── ParserRecursivo.py         # Analizador descendente recursivo
+│   ├── ParserPredictivo.py        # Analizador predictivo LL(1) con pila explícita
+│   └── ControladorParser.py      # SolicitudAnalisis / EjecutarAnalisis — API unificada
+├── ia/
+│   └── SugerenciasIA.py           # Clasificador Naive Bayes para sugerencias de error
+└── gui/
+    ├── Estilos.py                 # Paleta TEMA unificada para todas las interfaces
+    ├── Programas.py               # 5 programas de prueba predefinidos
+    ├── InterfazLexer.py           # Interfaz Tkinter — Entrega 1
+    └── InterfazSintactico.py      # Interfaz Tkinter — Entregas 2 y 3
+```
 
-| Archivo | Responsabilidad |
-|---|---|
-| `main.py` | Menú principal para elegir entre la vista léxica y la sintáctica |
-| `tokens.py` | Enum `TokenType` con los 33 tokens del lenguaje y dataclass `Token` |
-| `lexer.py` | Clase `Lexer` — analizador léxico independiente y reutilizable |
-| `gui_logic.py` | `EstadoLexer` — lógica de estado del análisis léxico (paso a paso, segmentos, errores) |
-| `gui_tk.py` | Interfaz gráfica Tkinter de la Entrega 1 — visualización interactiva del análisis léxico |
-| `grammar.py` | Gramática LL(1) factorizada y programas de prueba para la Entrega 2 |
-| `ll1_table.py` | Cálculo de conjuntos `FIRST`, `FOLLOW` y tabla LL(1) |
-| `parse_tree.py` | Nodos del árbol sintáctico, errores y resultados unificados |
-| `parser_recursive.py` | Analizador sintáctico descendente recursivo |
-| `parser_predictive.py` | Analizador sintáctico predictivo descendente con pila explícita |
-| `gui_parser_tk.py` | Interfaz gráfica Tkinter de la Entrega 2 — árbol, traza LL(1) y validación sintáctica |
-| `requirements.txt` | Dependencias externas del proyecto |
+---
 
-### Requisitos
+## Requisitos e instalación
 
 - Python 3.9 o superior
 - `tkinter` — incluido en Python estándar. En Linux: `sudo apt install python3-tk`
-- No requiere dependencias externas adicionales
-
-### Instalación y ejecución
+- Sin dependencias externas adicionales
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/tu-usuario/compilador
+git clone https://github.com/DanielPuertaBernal/compilador
 cd compilador
 
-# Crear y activar entorno virtual (recomendado)
+# Entorno virtual (recomendado)
 python -m venv venv
+source venv/bin/activate       # Mac / Linux
+venv\Scripts\activate          # Windows
 
-# Windows
-venv\Scripts\activate
-
-# Mac / Linux
-source venv/bin/activate
-
-# Abrir el menú principal (recomendado)
-python main.py
-
-# O ejecutar cada interfaz por separado
-python gui_tk.py
-python gui_parser_tk.py
+# Ejecutar
+python Main.py
 ```
 
-### Flujo sugerido para la sustentación
-
-1. Abrir `gui_parser_tk.py`
-2. Probar un caso **válido** con el método **recursivo** y mostrar el árbol
-3. Probar el mismo caso con **predictivo LL(1)** y mostrar la traza de pila
-4. Ejecutar un caso **inválido** para evidenciar el reporte de error
+---
 
 ## Uso de la aplicación
 
-#### Entrega 1 — Analizador léxico
+### Menú principal
 
-La interfaz ofrece dos modos de ingreso de código fuente:
+`Main.py` muestra tres tarjetas:
 
-**Modo A — Ingresar código manualmente:**
-Hacer clic en **"Ingresar codigo manualmente"** para abrir un diálogo de texto libre donde se puede escribir o pegar cualquier programa del lenguaje fuente. Confirmar con **"Usar este codigo"** o `Ctrl+Enter`.
+| Opción | Atajo | Descripción |
+|---|---|---|
+| Analizador Léxico | `1` | Interfaz de la Entrega 1 |
+| Analizador Sintáctico | `2` | Interfaz de la Entrega 2 |
+| Recuperación de Errores + IA | `3` | Interfaz de la Entrega 3 (recuperación activada) |
 
-**Modo B — Programas predefinidos:**
-Seleccionar uno de los 5 programas en la barra superior del editor:
+### Entrega 1 — Analizador léxico
 
-| Preset | Constructos que demuestra |
-|---|---|
-| Factorial | Funciones recursivas, `si/sino`, `retornar` |
-| Busqueda lineal | `para/desde/hasta/paso`, `si`, variables |
-| Clase Rectangulo | OOP completo — clases, atributos, métodos, `nuevo` |
-| Mientras + Logicos | `mientras`, operadores `y` / `o` / `no` |
-| Retornar vacio | Función con `retornar` sin expresión |
-
-Una vez cargado el código, usar los botones de análisis:
+Seleccionar preset o escribir código. Botones disponibles:
 
 | Botón | Función |
 |---|---|
-| **Analizar todo** | Procesa todos los tokens de una sola vez |
-| **Paso siguiente** | Avanza un token — muestra el proceso paso a paso |
-| **Reiniciar** | Limpia el análisis y vuelve al estado inicial |
+| **Analizar todo** | Tokeniza de una sola vez |
+| **Paso siguiente** | Avanza un token — modo paso a paso |
+| **Reiniciar** | Limpia el análisis |
 
-#### Entrega 2 — Analizador sintáctico
+Panel derecho muestra el código resaltado por categoría y la tabla de símbolos léxicos.
 
-La nueva interfaz `gui_parser_tk.py` permite:
+### Entrega 2 — Analizador sintáctico
 
 | Funcionalidad | Descripción |
 |---|---|
-| Selección de método | Elegir entre **recursivo** y **predictivo LL(1)** |
-| Programas predefinidos | Casos válidos e inválidos para probar la gramática |
-| Árbol sintáctico | Visualización del árbol generado por ambos métodos |
-| Traza predictiva | Tabla paso a paso con pila, lookahead y acción tomada |
-| Tabla LL(1) | Vista de la tabla calculada automáticamente desde la gramática |
-| FIRST / FOLLOW | Conjuntos calculados y mostrados en la propia app |
+| Método | Elegir entre **recursivo** y **predictivo LL(1)** |
+| Árbol sintáctico | Visualización del árbol generado |
+| Traza predictiva | Pila, lookahead y acción paso a paso |
+| Tabla LL(1) | Calculada automáticamente desde la gramática |
+| FIRST / FOLLOW | Conjuntos mostrados en la propia app |
 
-### Funcionalidades cubiertas
+### Entrega 3 — Recuperación de errores + IA
 
-| Requisito del enunciado | Implementación |
+Activar **"Recuperar errores (E3)"** antes de analizar. El parser no aborta al primer error: salta tokens hasta el siguiente punto de sincronización y sigue. La pestaña **Errores (E3)** muestra todos los errores encontrados con número, fila, columna y la sugerencia generada por el modelo de IA.
+
+---
+
+## Módulo de IA — Sugerencias contextuales
+
+**Archivo:** [`ia/SugerenciasIA.py`](ia/SugerenciasIA.py)
+
+### ¿Qué problema resuelve?
+
+Cuando el parser detecta un error, el mensaje genérico ("token inesperado") no orienta al estudiante. El modelo de IA clasifica el contexto del error y devuelve un mensaje en lenguaje natural específico, por ejemplo:
+
+> *"Falta la palabra reservada `entonces` después de la condición del `si`."*
+
+### Algoritmo: Naive Bayes Multinomial
+
+Se eligió Naive Bayes Multinomial por ser interpretable, liviano (sin dependencias externas), entrenable incrementalmente y apropiado para clasificación de texto con características discretas.
+
+#### Paso 1 — Extracción de características
+
+Cada error se describe con tres tipos de características categóricas:
+
+```
+NT:<nonterminal>     →  el no-terminal que se estaba expandiendo
+FOUND:<token>        →  el terminal encontrado (inesperado)
+EXP:<token>          →  cada terminal esperado en ese contexto (uno por característica)
+```
+
+**Ejemplo** — error al parsear `sent_si` con token `fin_si` esperando `entonces`:
+
+```
+("NT:sent_si", "FOUND:fin_si", "EXP:entonces")
+```
+
+Función: `_ExtraerCaracteristicas(nonterminal, token_encontrado, esperado) → tuple[str, ...]`
+
+#### Paso 2 — Entrenamiento
+
+El modelo se entrena con `DATOS_PREENTRENAMIENTO`: 60+ ejemplos etiquetados de la forma `(nonterminal, token_encontrado, [esperados], clase)`.
+
+Por cada ejemplo, `EntrenarEjemplo` actualiza tres contadores:
+
+| Contador | Qué almacena |
 |---|---|
-| Ingreso libre de cadena | Botón "Ingresar codigo manualmente" — diálogo modal |
-| Selección de cadena predefinida | 5 presets en la barra del editor |
-| Visualización gráfica de tokens | Panel "Posicion del Analizador" — colores por categoría, resaltado de línea activa, indicador del token actual |
-| Tabla de símbolos léxicos | Panel "Tabla de Simbolos Lexicos" — lexema, categoría, TokenType, fila, columna |
-| Manejo de errores léxicos | Barra inferior — fila y columna exactas, análisis continúa sin abortar |
-| Integración con el lexer de la Entrega 1 | `lexer.py` se reutiliza directamente por los parsers y la interfaz, sin duplicar lógica |
+| `_conteos_caracteristicas[(caract, clase)]` | Cuántas veces aparece cada característica en cada clase |
+| `_conteos_clases[clase]` | Cuántos ejemplos hay de cada clase |
+| `_vocabulario` | Conjunto de todas las características vistas |
+
+Las 15 clases posibles son: `falta_entonces`, `falta_hacer`, `falta_fin_si`, `falta_fin_para`, `falta_fin_mientras`, `falta_fin_funcion`, `falta_fin_clase`, `falta_tipo`, `falta_paren_der`, `falta_dos_puntos`, `falta_asignacion`, `falta_identificador`, `falta_expresion`, `operador_invalido`, `token_inesperado`.
+
+#### Paso 3 — Predicción
+
+Para un nuevo error, `PredecirClase` calcula el puntaje logarítmico de cada clase:
+
+```
+score(clase) = log P(clase) + Σ log P(característica | clase)
+```
+
+Con **suavizado de Laplace** para características no vistas:
+
+```
+P(característica | clase) = (conteo(caract, clase) + 1) / (conteo(clase) + |vocabulario| + 1)
+```
+
+Se elige la clase con mayor puntaje.
+
+```python
+# Simplificado
+for cls, conteo_cls in self._conteos_clases.items():
+    puntaje = log(conteo_cls / self._total)             # prior
+    for caract in caracteristicas:
+        conteo = conteos[(caract, cls)]                 # likelihood + Laplace
+        puntaje += log((conteo + 1) / (conteo_cls + vocab_size))
+```
+
+#### Paso 4 — Traducción a lenguaje natural
+
+La clase predicha se mapea a un mensaje en `MENSAJES_SUGERENCIA`:
+
+```python
+MENSAJES_SUGERENCIA = {
+    "falta_entonces":  "Falta la palabra reservada `entonces` después de la condición del `si`.",
+    "falta_fin_si":    "Falta `fin_si` para cerrar el bloque condicional.",
+    # ... 15 clases en total
+}
+```
+
+#### Paso 5 — Persistencia del modelo
+
+Al iniciarse, `_CargarOConstruir` intenta cargar `suggestion_model.json`. Si no existe (o falla), construye el modelo desde `DATOS_PREENTRENAMIENTO` y lo guarda. Esto evita reentrenar en cada ejecución.
+
+```
+Primera ejecución:  DATOS_PREENTRENAMIENTO → ModeloSugerencias → suggestion_model.json
+Siguientes:         suggestion_model.json → ModeloSugerencias (carga rápida)
+```
+
+`suggestion_model.json` está en `.gitignore` — se regenera automáticamente.
+
+#### Diagrama de flujo completo
+
+```
+Parser detecta error
+        │
+        ▼
+ConstruirError(nonterminal, token_encontrado, esperados)
+        │
+        ▼
+MODELO_IA.Sugerir(nonterminal, encontrado, esperados)
+        │
+        ▼
+_ExtraerCaracteristicas → ["NT:sent_si", "FOUND:fin_si", "EXP:entonces"]
+        │
+        ▼
+PredecirClase → score por cada clase (Naive Bayes + Laplace)
+        │
+        ▼
+clase = "falta_entonces"
+        │
+        ▼
+MENSAJES_SUGERENCIA["falta_entonces"]
+        │
+        ▼
+"Falta la palabra reservada `entonces` después de la condición del `si`."
+        │
+        ▼
+ErrorSintactico.sugerencia → mostrado en pestaña Errores (E3)
+```
+
+### Reentrenar o extender el modelo
+
+```python
+from ia.SugerenciasIA import ModeloSugerencias
+
+modelo = ModeloSugerencias.Cargar("ia/suggestion_model.json")
+modelo.EntrenarEjemplo("sent_si", "fin_clase", ["entonces"], "falta_entonces")
+modelo.Guardar("ia/suggestion_model.json")
+```
+
+---
+
+## Entregables por entrega
+
+### Entrega 1
+
+| Entregable | Evidencia |
+|---|---|
+| Código fuente Python | `lexico/Tokens.py`, `lexico/Lexer.py`, `gui/InterfazLexer.py` |
+| Interfaz gráfica | `gui/InterfazLexer.py` — resaltado, tabla léxica, modo paso a paso |
+
+### Entrega 2
+
+| Entregable | Evidencia |
+|---|---|
+| Parser recursivo | `sintactico/ParserRecursivo.py` |
+| Parser predictivo LL(1) | `sintactico/ParserPredictivo.py` |
+| Tabla LL(1) calculada | `sintactico/TablaLL1.py`, pestaña "Tabla LL(1)" en la GUI |
+| FIRST / FOLLOW | `sintactico/TablaLL1.py`, pestaña "FIRST/FOLLOW" en la GUI |
+| Árbol sintáctico | Pestaña "Árbol" en `gui/InterfazSintactico.py` |
+| Ajustes a la gramática | §8 de `Documentacion/BNF.md` |
+
+### Entrega 3
+
+| Entregable | Evidencia |
+|---|---|
+| Recuperación en modo pánico | `sintactico/RecuperacionErrores.py`, checkbox "Recuperar errores (E3)" |
+| Múltiples errores por análisis | `sintactico/ParserRecursivo.py` y `ParserPredictivo.py` con `recuperar=True` |
+| Sugerencias con IA | `ia/SugerenciasIA.py` — Naive Bayes Multinomial con suavizado de Laplace |
+| Pestaña de errores detallada | "Errores (E3)" en `gui/InterfazSintactico.py` |
 
 ---
 
 ## Tecnologías
 
-- **Lenguaje fuente:** diseño propio con palabras clave en español
-- **Lenguaje de destino:** TypeScript
-- **Implementación:** Python 3 + Tkinter
+- **Python 3.9+** con `tkinter` para la GUI
+- **Sin dependencias externas** — Naive Bayes implementado desde cero con `math.log`
+- **LL(1)** verificado sin conflictos — tabla calculada en `sintactico/TablaLL1.py`
