@@ -40,6 +40,7 @@ class AplicacionLanzador:
         self.root.bind("1", lambda _event: self._select("lexer"))
         self.root.bind("2", lambda _event: self._select("parser"))
         self.root.bind("3", lambda _event: self._select("parser3"))
+        self.root.bind("4", lambda _event: self._select("semantico"))
         self.root.bind("<Escape>", lambda _event: self.root.destroy())
 
     def _build_ui(self) -> None:
@@ -112,12 +113,24 @@ class AplicacionLanzador:
             command=lambda: self._select("parser3"),
         ).pack(side="left", fill="both", expand=True, padx=(8, 0))
 
+        cards2 = tk.Frame(body, bg=T["bg"])
+        cards2.pack(fill="x", pady=(10, 0))
+
+        self._build_card(
+            cards2,
+            title="Analizador Semántico",
+            subtitle="Entrega 4 · tabla de símbolos, 5 reglas semánticas y detección de errores",
+            button_text="Abrir analizador E4 (4)",
+            accent="#D97706",
+            command=lambda: self._select("semantico"),
+        ).pack(side="left", fill="both", expand=True, padx=(0, 8))
+
         footer = tk.Frame(body, bg=T["bg"])
         footer.pack(fill="x", pady=(18, 0))
 
         tk.Label(
             footer,
-            text="Atajos: 1 = Léxico · 2 = Sintáctico · 3 = Entrega 3 · Esc = Salir",
+            text="Atajos: 1 = Léxico · 2 = Sintáctico · 3 = Entrega 3 · 4 = Semántico · Esc = Salir",
             bg=T["bg"],
             fg=T["text_dim"],
             font=self.f_hint,
@@ -221,6 +234,13 @@ def main() -> None:
         app = AplicacionSintactico(root)
         if choice == "parser3":
             app.recover_var.set(True)
+        root.mainloop()
+
+    elif choice == "semantico":
+        from gui.InterfazSemantico import AplicacionSemantico
+
+        root = tk.Tk()
+        AplicacionSemantico(root)
         root.mainloop()
 
 
