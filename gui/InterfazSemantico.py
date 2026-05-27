@@ -589,6 +589,21 @@ class AplicacionSemantico:
                 fg=_ACENTO_E4_FG if i == index else T["text"],
             )
         self._limpiar(keep_status=True)
+        # Restablecer el mensaje inicial en la pestaña Resumen al cambiar preset
+        self._set_widget(
+            self.txt_resumen,
+            "Selecciona un ejemplo o escribe tu código y pulsa Analizar.\n\n"
+            "Pestañas disponibles:\n"
+            "  • Tabla de Símbolos — todos los identificadores declarados con su tipo y ámbito\n"
+            "  • Errores Semánticos — violaciones de las 5 reglas semánticas\n"
+            "  • Árbol — árbol sintáctico producido por el parser\n\n"
+            "Reglas semánticas implementadas:\n"
+            "  REGLA 1 — No redeclaración de identificadores en el mismo ámbito\n"
+            "  REGLA 2 — Uso de variable previamente declarada\n"
+            "  REGLA 3 — Compatibilidad de tipos en declaración con inicialización\n"
+            "  REGLA 4 — Tipo de retorno compatible con la función contenedora\n"
+            "  REGLA 5 — Función o clase invocada debe estar declarada",
+        )
 
     def _limpiar(self, keep_status: bool = False) -> None:
         for item in self.sym_tree.get_children():

@@ -1,9 +1,12 @@
 """
-main.py — menú principal del proyecto
-Teoría de Compiladores | Entrega 2
+Main.py — Menú principal del compilador fuente-a-fuente
+Compiladores · Entregas 1-4 | Universidad Católica de Oriente
 
-Permite elegir entre la interfaz del analizador léxico (Entrega 1)
-y la interfaz del analizador sintáctico (Entrega 2).
+Permite elegir entre los cuatro módulos del compilador:
+  Entrega 1 — Analizador Léxico
+  Entrega 2 — Analizador Sintáctico (recursivo y predictivo LL(1))
+  Entrega 3 — Recuperación de errores + sugerencias con IA
+  Entrega 4 — Analizador Semántico (tabla de símbolos + 5 reglas)
 """
 
 import tkinter as tk
