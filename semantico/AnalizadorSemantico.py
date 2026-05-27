@@ -393,6 +393,71 @@ class AnalizadorSemantico:
 
         return None
 
+    # ── REGLA SEM 1/2 — Sentencia para (ciclo for) ───────────────────────────
+
+    def _visitar_sent_para(self, nodo: NodoArbol) -> Optional[str]:
+        """
+        REGLA SEM 1: variable de iteración no redeclarada en el mismo ámbito.
+        REGLA SEM 2: registra la variable de iteración para que su uso en el
+                     bloque del ciclo no genere un falso error de 'no declarada'.
+
+        Producción: para IDENTIFICADOR desde <expresion> hasta <expresion>
+                    [0]  [1]            [2]   [3]          [4]   [5]
+                    <paso_opt> hacer <bloque> fin_para
+                    [6]        [7]   [8]      [9]
+
+        Atributo sintetizado: id.nombre, id.tipo (siempre 'entero').
+        Atributo heredado:    id.ambito (contexto actual de la tabla).
+        """
+        if len(nodo.hijos) < 9:
+            self._visitar_generico(nodo)
+            return None
+
+        id_nodo     = nodo.hijos[1]  # IDENTIFICADOR — variable contadora
+        expr_desde  = nodo.hijos[3]  # <expresion>   — límite inferior
+        expr_hasta  = nodo.hijos[5]  # <expresion>   — límite superior
+        paso_nodo   = nodo.hijos[6]  # <paso_opt>
+        bloque_nodo = nodo.hijos[8]  # <bloque>      — cuerpo del ciclo
+
+        nombre = id_nodo.token.lexema  if id_nodo.token  else "?"
+        fila   = id_nodo.token.fila    if id_nodo.token  else 0
+        col    = id_nodo.token.columna if id_nodo.token  else 0
+
+        # ── REGLA SEM 1: verificar que no esté ya declarada en este ámbito ──
+        existente = self.tabla.buscar_local(nombre)
+        if existente is not None:
+            self._registrar_error(
+                tipo_error=TIPO_DOBLE_DECLARACION,
+                mensaje=(
+                    f"La variable de iteración '{nombre}' ya fue declarada "
+                    f"en el ámbito '{self.tabla.ambito_actual}'"
+                ),
+                lexema=nombre, fila=fila, col=col,
+                sugerencia=(
+                    f"Usa un nombre diferente para la variable del 'para'. "
+                    f"Primera declaración en L{existente.fila}:C{existente.columna}."
+                ),
+            )
+        else:
+            # Registrar la variable contadora como tipo 'entero'
+            # (los rangos desde/hasta siempre son enteros en este lenguaje)
+            self.tabla.declarar(EntradaSimbolo(
+                nombre=nombre, categoria="variable", tipo="entero",
+                ambito=self.tabla.ambito_actual, fila=fila, columna=col,
+                inicializado=True,
+            ))
+
+        # Visitar expresiones de rango y paso para detectar errores dentro de ellos
+        self._visitar(expr_desde)
+        self._visitar(expr_hasta)
+        self._visitar(paso_nodo)
+
+        # Visitar el bloque del cuerpo del ciclo
+        # (la variable de iteración ya está registrada, no habrá falso REGLA 2)
+        self._visitar(bloque_nodo)
+
+        return None
+
     # ── REGLA SEM 4 — Sentencia retornar ─────────────────────────────────────
 
     def _visitar_sent_retornar(self, nodo: NodoArbol) -> Optional[str]:
