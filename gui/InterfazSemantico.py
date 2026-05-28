@@ -3,6 +3,7 @@ InterfazSemantico.py — Interfaz gráfica del analizador semántico
 Compiladores — Entrega 4 | Análisis semántico + Tabla de símbolos
 """
 
+import threading
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 from typing import List, Optional
@@ -11,6 +12,12 @@ from gui.Estilos import TEMA as T
 from semantico.ControladorSemantico import SolicitudSemantica, EjecutarAnalisisSemantico
 from semantico.ErrorSemantico import ErrorSemantico
 from sintactico.ArbolSintactico import NodoArbol
+
+try:
+    from ia.AsistenteSemantico import enriquecer_errores, consultar_error as _consultar_error_ia
+    _IA_DISPONIBLE = True
+except ImportError:
+    _IA_DISPONIBLE = False
 
 # ── Color de acento E4 (ámbar — coincide con el color del PDF para reglas semánticas)
 _ACENTO_E4 = "#D97706"
@@ -96,6 +103,8 @@ class AplicacionSemantico:
         self.root = root
         self.method_var = tk.StringVar(value="recursivo")
         self._err_objects: List[ErrorSemantico] = []
+        self._codigo_actual: str = ""
+        self._ia_thread: Optional[threading.Thread] = None
 
         root.title("Analizador Semántico — Entrega 4")
         root.geometry("1440x900")
@@ -417,10 +426,65 @@ class AplicacionSemantico:
             bg=T["surface"], fg=T["text_dim"], font=self.f_ui_b,
         ).pack(anchor="w")
         self.err_detail = tk.Text(
-            detail, font=self.f_err, wrap="word", height=8,
+            detail, font=self.f_err, wrap="word", height=5,
             relief="flat", bg="#FFF7F7", fg=T["text"],
         )
         self.err_detail.pack(fill="both", expand=True)
+
+        # ── Bonus Modalidad C: Asistente IA ──────────────────────────────
+        ia_frame = tk.Frame(self.tab_errores, bg=T["surface"])
+        ia_frame.pack(fill="x", padx=8, pady=(4, 8))
+
+        ia_hdr = tk.Frame(ia_frame, bg=_ACENTO_E4_BG)
+        ia_hdr.pack(fill="x")
+        tk.Label(
+            ia_hdr,
+            text="✦ Asistente IA — consulta sobre el error seleccionado",
+            bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui_b,
+        ).pack(side="left", padx=10, pady=5)
+        self.lbl_ia_estado = tk.Label(
+            ia_hdr, text="(requiere ANTHROPIC_API_KEY)" if not _IA_DISPONIBLE else "",
+            bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui,
+        )
+        self.lbl_ia_estado.pack(side="right", padx=10, pady=5)
+
+        ia_input = tk.Frame(ia_frame, bg=T["surface"])
+        ia_input.pack(fill="x", pady=(4, 0))
+        self.ia_entry = tk.Entry(
+            ia_input, font=self.f_ui,
+            bg=T["surface2"], fg=T["text_dim"],
+            relief="flat", bd=1,
+        )
+        _placeholder = "¿Por qué ocurre este error y cómo lo corrijo?"
+        self.ia_entry.insert(0, _placeholder)
+        self.ia_entry.bind("<FocusIn>",  lambda _e: (
+            self.ia_entry.delete(0, "end") or
+            self.ia_entry.configure(fg=T["text"])
+        ) if self.ia_entry.get() == _placeholder else None)
+        self.ia_entry.bind("<FocusOut>", lambda _e: (
+            self.ia_entry.insert(0, _placeholder) or
+            self.ia_entry.configure(fg=T["text_dim"])
+        ) if not self.ia_entry.get() else None)
+        self.ia_entry.bind("<Return>", lambda _e: self._consultar_ia())
+        self.ia_entry.pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=4)
+
+        self.btn_ia = tk.Button(
+            ia_input, text="Preguntar",
+            bg=_ACENTO_E4, fg=T["text_white"], font=self.f_ui_b,
+            relief="flat", padx=10, pady=4, cursor="hand2",
+            command=self._consultar_ia,
+        )
+        self.btn_ia.pack(side="right")
+
+        self.ia_response = tk.Text(
+            ia_frame, font=self.f_ui, wrap="word", height=4,
+            relief="flat", bg="#FFFBEB", fg=T["text"],
+        )
+        self.ia_response.pack(fill="both", expand=True, pady=(4, 0))
+        self._set_widget(
+            self.ia_response,
+            "Selecciona un error de la tabla y haz una pregunta al asistente.",
+        )
 
     # ── Pestaña Árbol ─────────────────────────────────────────────────────────
 
@@ -447,6 +511,7 @@ class AplicacionSemantico:
 
     def _analizar(self) -> None:
         codigo = self.editor.get("1.0", "end-1c")
+        self._codigo_actual = codigo
         self._limpiar(keep_status=True)
 
         errores_lex, resultado_sint, resultado_sem = EjecutarAnalisisSemantico(
@@ -508,6 +573,10 @@ class AplicacionSemantico:
         # ── Pestaña Errores Semánticos ───────────────────────────────────
         if resultado_sem:
             self._poblar_errores(resultado_sem.errores)
+
+        # ── Bonus Modalidad A: enriquecimiento con IA ────────────────────
+        if resultado_sem and resultado_sem.errores:
+            self._enriquecer_con_ia(resultado_sem.errores)
 
         # ── Pestaña Árbol ────────────────────────────────────────────────
         if resultado_sint and resultado_sint.arbol:
@@ -601,6 +670,10 @@ class AplicacionSemantico:
         if idx < len(self._err_objects):
             err = self._err_objects[idx]
             self._set_widget(self.err_detail, err.FormatearReporte())
+            self._set_widget(
+                self.ia_response,
+                "Escribe tu pregunta arriba y pulsa Preguntar.",
+            )
 
     # ── Árbol sintáctico ──────────────────────────────────────────────────────
 
@@ -669,6 +742,11 @@ class AplicacionSemantico:
         self._err_objects = []
         self._clear_error_highlights()
         self.notebook.tab(self.tab_errores, text="Errores Semánticos")
+        self.lbl_ia_estado.configure(text="")
+        self._set_widget(
+            self.ia_response,
+            "Selecciona un error de la tabla y haz una pregunta al asistente.",
+        )
         if not keep_status:
             self._set_status("Listo para analizar.", ok=None)
             self._set_widget(self.txt_resumen, "")
@@ -683,6 +761,78 @@ class AplicacionSemantico:
             bg = T["error_bg"]
             fg = T["error"]
         self.lbl_status.configure(text=texto, bg=bg, fg=fg)
+
+    # ── Bonus: integración con IA ─────────────────────────────────────────────
+
+    def _enriquecer_con_ia(self, errores: List[ErrorSemantico]) -> None:
+        """Modalidad A: lanza hilo para enriquecer sugerencias con Claude."""
+        if not _IA_DISPONIBLE:
+            self.lbl_ia_estado.configure(
+                text="pip install anthropic para activar la IA"
+            )
+            return
+        self.lbl_ia_estado.configure(text="Consultando IA…")
+        codigo = self._codigo_actual
+
+        def _worker() -> None:
+            exito, msg = enriquecer_errores(codigo, errores)
+            self.root.after(0, lambda: self._on_enriquecimiento_listo(exito, msg))
+
+        self._ia_thread = threading.Thread(target=_worker, daemon=True)
+        self._ia_thread.start()
+
+    def _on_enriquecimiento_listo(self, exito: bool, msg: str) -> None:
+        """Callback en hilo principal: actualiza UI tras el enriquecimiento."""
+        self.lbl_ia_estado.configure(text=msg[:70])
+        if exito:
+            # Si hay un error seleccionado, refrescar su detalle con la sugerencia IA
+            sel = self.err_tree.selection()
+            if sel:
+                idx = self.err_tree.index(sel[0])
+                if idx < len(self._err_objects):
+                    self._set_widget(
+                        self.err_detail,
+                        self._err_objects[idx].FormatearReporte(),
+                    )
+
+    def _consultar_ia(self) -> None:
+        """Modalidad C: responde una pregunta del usuario sobre el error seleccionado."""
+        if not _IA_DISPONIBLE:
+            self._set_widget(
+                self.ia_response,
+                "Librería 'anthropic' no instalada.\n"
+                "Ejecuta en la terminal:  pip install anthropic\n"
+                "Luego configura:  ANTHROPIC_API_KEY=<tu clave>",
+            )
+            return
+        sel = self.err_tree.selection()
+        if not sel:
+            self._set_widget(self.ia_response, "Selecciona primero un error de la tabla.")
+            return
+        idx = self.err_tree.index(sel[0])
+        if idx >= len(self._err_objects):
+            return
+
+        error   = self._err_objects[idx]
+        pregunta = self.ia_entry.get().strip()
+        placeholder = "¿Por qué ocurre este error y cómo lo corrijo?"
+        if not pregunta or pregunta == placeholder:
+            pregunta = placeholder
+
+        self._set_widget(self.ia_response, "Consultando IA…")
+        self.btn_ia.configure(state="disabled")
+        codigo = self._codigo_actual
+
+        def _worker() -> None:
+            exito, respuesta = _consultar_error_ia(codigo, error, pregunta)
+            self.root.after(0, lambda: self._on_respuesta_ia(exito, respuesta))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_respuesta_ia(self, exito: bool, respuesta: str) -> None:
+        """Callback: muestra la respuesta del asistente en la GUI."""
+        self.btn_ia.configure(state="normal")
+        self._set_widget(self.ia_response, respuesta)
 
     # ── Gutter de números de línea ────────────────────────────────────────────
 
