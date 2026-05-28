@@ -58,7 +58,7 @@ _ENV = _leer_dotenv()   # se carga una vez al importar el módulo
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-_MODELO  = "gemini-1.5-flash"   # gratis: 15 req/min, 1 M tokens/día
+_MODELO  = "gemini-2.0-flash-lite"   # gratis: 30 req/min, sin límite diario práctico
 _URL_BASE = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{_MODELO}:generateContent?key="
