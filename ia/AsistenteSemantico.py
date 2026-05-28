@@ -23,11 +23,37 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import urllib.request
 import urllib.error
 from typing import List, Optional, Tuple
 
 from semantico.ErrorSemantico import ErrorSemantico
+
+
+# ── Lectura del .env ──────────────────────────────────────────────────────────
+
+def _leer_dotenv() -> dict[str, str]:
+    """Lee el archivo .env de la raíz del proyecto sin dependencias externas."""
+    raiz = pathlib.Path(__file__).parent.parent   # ia/ → compilador/
+    env_path = raiz / ".env"
+    valores: dict[str, str] = {}
+    if not env_path.exists():
+        return valores
+    try:
+        with open(env_path, encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea or linea.startswith("#") or "=" not in linea:
+                    continue
+                clave, _, valor = linea.partition("=")
+                valores[clave.strip()] = valor.strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return valores
+
+
+_ENV = _leer_dotenv()   # se carga una vez al importar el módulo
 
 
 # ── Configuración ─────────────────────────────────────────────────────────────
@@ -120,8 +146,13 @@ def _extraer_json(texto: str) -> Optional[dict]:
 
 
 def _obtener_key(api_key: Optional[str]) -> Optional[str]:
-    """Retorna la clave de API: parámetro → variable de entorno."""
-    return api_key or os.environ.get("GEMINI_API_KEY", "") or None
+    """Retorna la clave de API: parámetro → .env → variable de entorno."""
+    return (
+        api_key
+        or _ENV.get("GEMINI_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+        or None
+    )
 
 
 # ── API pública ───────────────────────────────────────────────────────────────
