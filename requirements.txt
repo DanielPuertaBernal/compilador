@@ -1,4 +1,16 @@
-# No se requieren librerías externas para la Entrega 2.
-# La interfaz usa Tkinter, incluido en Python estándar.
-# En Linux, si falta Tkinter:
-#   sudo apt install python3-tk
+# Interfaz gráfica — incluida en Python estándar (no requiere instalación)
+# En Linux, si falta Tkinter:  sudo apt install python3-tk
+
+# ── Bonus Entrega 4: Integración de IA con Google Gemini ─────────────────────
+# El bonus NO requiere librerías externas de Python (usa urllib estándar).
+#
+# Solo necesitas una clave de API gratuita de Google Gemini:
+#   1. Ir a: https://aistudio.google.com/apikey
+#   2. Iniciar sesión con tu cuenta de Google (sin tarjeta de crédito)
+#   3. Clic en "Create API key" y copiar la clave (empieza con "AIza...")
+#
+# Configurar la clave antes de ejecutar el compilador:
+#   Windows PowerShell:  $env:GEMINI_API_KEY = "AIza..."
+#   Linux / macOS:       export GEMINI_API_KEY="AIza..."
+#
+# Modelo usado: gemini-1.5-flash (gratuito: 15 requests/min, sin límite diario práctico)

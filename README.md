@@ -1,7 +1,7 @@
 # Compilador Fuente-a-Fuente — Español a TypeScript
-**Teoría de Compiladores — Trabajo de curso | Entregas 1, 2 y 3**
+**Teoría de Compiladores — Trabajo de curso | Entregas 1, 2, 3 y 4**
 
-Proyecto de curso para un lenguaje fuente con palabras reservadas en español, análisis léxico, sintáctico y recuperación de errores con sugerencias generadas por IA.
+Proyecto de curso para un lenguaje fuente con palabras reservadas en español, análisis léxico, sintáctico, recuperación de errores con sugerencias generadas por IA y análisis semántico con tabla de símbolos.
 
 ---
 
@@ -12,6 +12,7 @@ Proyecto de curso para un lenguaje fuente con palabras reservadas en español, a
 - **Entrega 1:** analizador léxico con visualización interactiva
 - **Entrega 2:** parser recursivo y predictivo LL(1) con árbol sintáctico
 - **Entrega 3:** recuperación de errores en modo pánico + sugerencias con IA (Naive Bayes)
+- **Entrega 4:** analizador semántico con tabla de símbolos, 5 reglas semánticas y detección de errores
 
 ## Documentación incluida
 
@@ -19,7 +20,7 @@ Proyecto de curso para un lenguaje fuente con palabras reservadas en español, a
 |---|---|
 | [Requisitos del Lenguaje Origen](Documentacion/RequisitosLenguajeOrigen.md) | Vocabulario, operadores, delimitadores y equivalencias con TypeScript |
 | [Gramática BNF](Documentacion/BNF.md) | Gramática LL(1) en BNF, conjuntos FIRST/FOLLOW, verificación y ajustes |
-| `README.md` | Instalación, ejecución, estructura y descripción del módulo de IA |
+| `README.md` | Instalación, ejecución, estructura y descripción de todos los módulos |
 
 ---
 
@@ -27,7 +28,7 @@ Proyecto de curso para un lenguaje fuente con palabras reservadas en español, a
 
 ```
 compilador/
-├── Main.py                        # Menú principal
+├── Main.py                        # Menú principal (Entregas 1–4)
 ├── lexico/
 │   ├── Tokens.py                  # Enum TokenType (33 tokens) y dataclass Token
 │   ├── Lexer.py                   # Analizador léxico reutilizable
@@ -40,14 +41,20 @@ compilador/
 │   ├── RecuperacionErrores.py     # Tokens de sincronización y salto en modo pánico
 │   ├── ParserRecursivo.py         # Analizador descendente recursivo
 │   ├── ParserPredictivo.py        # Analizador predictivo LL(1) con pila explícita
-│   └── ControladorParser.py      # SolicitudAnalisis / EjecutarAnalisis — API unificada
+│   └── ControladorParser.py       # SolicitudAnalisis / EjecutarAnalisis — API unificada
+├── semantico/
+│   ├── TablaSimbolos.py           # EntradaSimbolo, AmbitoTabla, TablaSimbolos (ámbitos anidados)
+│   ├── ErrorSemantico.py          # ErrorSemantico, ResultadoSemantico, constantes de tipo
+│   ├── AnalizadorSemantico.py     # Visitor sobre el AST — implementa las 5 reglas semánticas
+│   └── ControladorSemantico.py    # EjecutarAnalisisSemantico — API unificada (léxico+sint+sem)
 ├── ia/
-│   └── SugerenciasIA.py           # Clasificador Naive Bayes para sugerencias de error
+│   └── SugerenciasIA.py           # Clasificador Naive Bayes para sugerencias de error sintáctico
 └── gui/
     ├── Estilos.py                 # Paleta TEMA unificada para todas las interfaces
-    ├── Programas.py               # 5 programas de prueba predefinidos
+    ├── Programas.py               # Programas de prueba predefinidos (Entregas 1–3)
     ├── InterfazLexer.py           # Interfaz Tkinter — Entrega 1
-    └── InterfazSintactico.py      # Interfaz Tkinter — Entregas 2 y 3
+    ├── InterfazSintactico.py      # Interfaz Tkinter — Entregas 2 y 3
+    └── InterfazSemantico.py       # Interfaz Tkinter — Entrega 4
 ```
 
 ---
@@ -77,13 +84,14 @@ python Main.py
 
 ### Menú principal
 
-`Main.py` muestra tres tarjetas:
+`Main.py` muestra cuatro tarjetas de acceso rápido:
 
 | Opción | Atajo | Descripción |
 |---|---|---|
 | Analizador Léxico | `1` | Interfaz de la Entrega 1 |
 | Analizador Sintáctico | `2` | Interfaz de la Entrega 2 |
 | Recuperación de Errores + IA | `3` | Interfaz de la Entrega 3 (recuperación activada) |
+| Analizador Semántico | `4` | Interfaz de la Entrega 4 |
 
 ### Entrega 1 — Analizador léxico
 
@@ -111,9 +119,102 @@ Panel derecho muestra el código resaltado por categoría y la tabla de símbolo
 
 Activar **"Recuperar errores (E3)"** antes de analizar. El parser no aborta al primer error: salta tokens hasta el siguiente punto de sincronización y sigue. La pestaña **Errores (E3)** muestra todos los errores encontrados con número, fila, columna y la sugerencia generada por el modelo de IA.
 
+### Entrega 4 — Analizador semántico
+
+Seleccionar un ejemplo de los 7 presets o escribir código propio y pulsar **Analizar**. La interfaz expone cuatro pestañas:
+
+| Pestaña | Contenido |
+|---|---|
+| **Resumen** | Veredicto del análisis, reglas aplicadas y cantidad de errores |
+| **Tabla de Símbolos** | Todos los identificadores declarados con tipo, ámbito, fila y columna |
+| **Errores Semánticos** | Lista detallada: regla violada, lexema, posición y sugerencia de corrección |
+| **Árbol** | Árbol sintáctico generado por el parser (misma representación que E2/E3) |
+
+Los 7 programas de ejemplo cubren:
+
+| Preset | Regla demostrada |
+|---|---|
+| Sin errores (factorial) | Programa válido — 0 errores |
+| Doble declaración | REGLA SEM 1 |
+| Variable no declarada | REGLA SEM 2 |
+| Tipo incompatible | REGLA SEM 3 |
+| Retorno incompatible | REGLA SEM 4 |
+| Función no declarada | REGLA SEM 5 |
+| Errores mixtos | Varias reglas simultáneas |
+
 ---
 
-## Módulo de IA — Sugerencias contextuales
+## Reglas semánticas — Entrega 4
+
+El módulo `semantico/AnalizadorSemantico.py` implementa un **visitor** sobre el AST producido por el parser. Cada nodo relevante es visitado por su método `_visitar_<nonterminal>` correspondiente.
+
+### REGLA SEM 1 — No redeclaración en el mismo ámbito
+
+**Tipo de atributo:** sintetizado — al declarar una variable/función/parámetro se consulta si el nombre ya existe en el ámbito actual con `buscar_local`.
+
+**Restricción:** un identificador no puede declararse dos veces en el mismo ámbito. Los ámbitos anidados sí pueden sombrear nombres de ámbitos padres.
+
+**Detección:** `_visitar_decl_variable`, `_visitar_decl_atributo`, `_visitar_def_funcion`, `_visitar_sent_para` — todos invocan `tabla.buscar_local` antes de `tabla.declarar`.
+
+---
+
+### REGLA SEM 2 — Uso de variable previamente declarada
+
+**Tipo de atributo:** heredado — el nombre del identificador se propaga hacia arriba en la jerarquía de ámbitos.
+
+**Restricción:** toda variable o parámetro usado en una expresión debe haber sido declarado previamente (en el ámbito actual o en algún ámbito padre).
+
+**Detección:** `_visitar_valor_atomico` y `_visitar_sent_identificador` — invocan `tabla.buscar` (búsqueda ascendente) y reportan error si devuelve `None`.
+
+---
+
+### REGLA SEM 3 — Compatibilidad de tipos en inicialización
+
+**Tipo de atributo:** sintetizado — el tipo de la expresión de la derecha se extrae del valor literal o de la entrada de la tabla de símbolos.
+
+**Restricción:** en `var x: T = expr`, el tipo inferido de `expr` debe ser compatible con `T`. Los tipos permitidos son `entero`, `real`, `cadena` y `booleano`; `entero` es compatible con `real` (promoción implícita).
+
+**Detección:** `_visitar_decl_variable` — compara `tipo_declarado` con `tipo_valor`.
+
+---
+
+### REGLA SEM 4 — Tipo de retorno compatible con la función
+
+**Tipo de atributo:** heredado — el tipo de retorno de la función se guarda en `_tipo_retorno_actual` al entrar a `_visitar_def_funcion` y se pasa implícitamente a `_visitar_sent_retornar`.
+
+**Restricción:** el tipo de la expresión devuelta en `retornar <expr>` debe ser compatible con el tipo de retorno declarado en la cabecera de la función.
+
+**Detección:** `_visitar_sent_retornar` — compara el tipo inferido de la expresión con `_tipo_retorno_actual`.
+
+---
+
+### REGLA SEM 5 — Función o clase invocada debe estar declarada
+
+**Tipo de atributo:** sintetizado — el nombre del callee se extrae del nodo `IDENTIFICADOR` hijo del nodo de llamada.
+
+**Restricción:** toda llamada a función o instanciación de clase requiere que el identificador haya sido declarado como `funcion` o `clase` en un ámbito visible.
+
+**Detección:** `_visitar_sent_identificador` — cuando detecta paréntesis tras el identificador verifica que la entrada en la tabla tenga `categoria == "funcion"` o `"clase"`.
+
+---
+
+### Tabla de símbolos — estructura
+
+```
+TablaSimbolos
+  └── AmbitoTabla "global"
+        ├── EntradaSimbolo (variable / funcion / clase)
+        └── AmbitoTabla "miFunc"          ← sub-ámbito al entrar en función
+              ├── EntradaSimbolo (parametro)
+              └── AmbitoTabla "para_i"    ← sub-ámbito al entrar en ciclo para
+                    └── EntradaSimbolo (variable entera de iteración)
+```
+
+La búsqueda ascendente (`buscar`) recorre la cadena de padres hasta el ámbito `"global"`. La declaración siempre opera en el ámbito actual (`buscar_local` + `declarar`).
+
+---
+
+## Módulo de IA — Sugerencias contextuales (Entrega 3)
 
 **Archivo:** [`ia/SugerenciasIA.py`](ia/SugerenciasIA.py)
 
@@ -278,10 +379,23 @@ modelo.Guardar("ia/suggestion_model.json")
 | Sugerencias con IA | `ia/SugerenciasIA.py` — Naive Bayes Multinomial con suavizado de Laplace |
 | Pestaña de errores detallada | "Errores (E3)" en `gui/InterfazSintactico.py` |
 
+### Entrega 4
+
+| Entregable | Evidencia |
+|---|---|
+| ≥ 5 reglas semánticas | `semantico/AnalizadorSemantico.py` — REGLAS SEM 1–5 documentadas |
+| Atributos sintetizados/heredados | Comentarios `# Atributo sintetizado/heredado` en cada `_visitar_*` |
+| Tabla de símbolos con ámbitos anidados | `semantico/TablaSimbolos.py` — jerarquía padre/hijo + búsqueda ascendente |
+| Detección con fila/columna/lexema/mensaje | `semantico/ErrorSemantico.py` — `FormatearReporte()` + columnas en GUI |
+| Recuperación tras error (continúa el análisis) | `_registrar_error` no lanza excepción; el analizador siempre termina |
+| Separación de fases (semántico ≠ sintáctico) | Paquete `semantico/` independiente; recibe el AST ya construido |
+| GUI con tabla de símbolos + errores + árbol | `gui/InterfazSemantico.py` — 4 pestañas: Resumen, Símbolos, Errores, Árbol |
+| 7 programas de demostración | `PROGRAMAS_SEM` en `gui/InterfazSemantico.py` (uno por regla + mixto) |
+
 ---
 
 ## Tecnologías
 
 - **Python 3.9+** con `tkinter` para la GUI
-- **Sin dependencias externas** — Naive Bayes implementado desde cero con `math.log`
+- **Sin dependencias externas** — Naive Bayes implementado desde cero con `math.log`; semántico implementado con el patrón Visitor sobre el AST
 - **LL(1)** verificado sin conflictos — tabla calculada en `sintactico/TablaLL1.py`
