@@ -219,6 +219,24 @@ class AplicacionSemantico:
         )
         editor_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
+        # Gutter — columna de números de línea
+        self.line_numbers = tk.Text(
+            editor_box,
+            width=4,
+            bg=T["surface3"],
+            fg=T["text_dim"],
+            font=self.f_code,
+            relief="flat", bd=0,
+            state="disabled",
+            cursor="arrow",
+            padx=6, pady=8,
+            wrap="none",
+            exportselection=False,
+        )
+        self.line_numbers.pack(side="left", fill="y")
+        self.line_numbers.tag_configure("error_ln", foreground="#B91C1C")
+        tk.Frame(editor_box, bg=T["border"], width=1).pack(side="left", fill="y")
+
         self.editor = tk.Text(
             editor_box, font=self.f_code,
             bg=T["surface2"], fg=T["text"],
@@ -227,11 +245,32 @@ class AplicacionSemantico:
         )
         self.editor.pack(side="left", fill="both", expand=True)
 
-        sb_y = ttk.Scrollbar(editor_box, orient="vertical",   command=self.editor.yview)
+        # Tag para subrayado rojo de errores (estilo IDE)
+        self.editor.tag_configure(
+            "error_hl",
+            background="#FEE2E2",
+            foreground="#B91C1C",
+            underline=True,
+        )
+        # Tag para resaltar la línea activa del cursor
+        self.editor.tag_configure("active_line", background="#DFE3F5")
+        # error_hl siempre visible por encima de active_line
+        self.editor.tag_raise("error_hl")
+
+        sb_y = ttk.Scrollbar(editor_box, orient="vertical", command=self._scroll_editor_y)
         sb_x = ttk.Scrollbar(parent,     orient="horizontal", command=self.editor.xview)
-        self.editor.configure(yscrollcommand=sb_y.set, xscrollcommand=sb_x.set)
+        self._sb_editor_y = sb_y
+        self.editor.configure(yscrollcommand=self._sync_scroll_y, xscrollcommand=sb_x.set)
         sb_y.pack(side="right", fill="y")
         sb_x.pack(fill="x", padx=8)
+
+        # Eventos para mantener el gutter y la línea activa actualizados
+        self.editor.bind("<KeyRelease>",      lambda _e: (self._update_line_numbers(), self._highlight_active_line()))
+        self.editor.bind("<ButtonRelease-1>", lambda _e: self._highlight_active_line())
+        self.editor.bind("<<Paste>>",         lambda _e: self.root.after(10, self._update_line_numbers))
+        self.editor.bind("<<Undo>>",          lambda _e: self.root.after(10, self._update_line_numbers))
+        self.editor.bind("<Configure>",       lambda _e: self._update_line_numbers())
+        self.editor.bind("<MouseWheel>",      lambda _e: self.root.after(10, self._sync_ln_view))
 
     # ── Panel derecho: resultados ─────────────────────────────────────────────
 
@@ -421,6 +460,7 @@ class AplicacionSemantico:
             for e in errores_lex:
                 lineas.append(f"  Fila {e.fila}, col {e.columna}: {e.mensaje}")
             self._set_widget(self.txt_resumen, "\n".join(lineas))
+            self._highlight_errors(errores_lex)
             return
 
         # Estado global
@@ -473,6 +513,12 @@ class AplicacionSemantico:
         if resultado_sint and resultado_sint.arbol:
             self._renderizar_arbol(resultado_sint.arbol)
 
+        # ── Resaltar errores en el editor ───────────────────────────────
+        if resultado_sem and resultado_sem.errores:
+            self._highlight_errors(resultado_sem.errores)
+        else:
+            self._clear_error_highlights()
+
         # Navegar a la pestaña más relevante
         if resultado_sem and resultado_sem.errores:
             self.notebook.select(self.tab_errores)
@@ -516,6 +562,13 @@ class AplicacionSemantico:
             self.err_tree.delete(item)
         self._set_widget(self.err_detail, "")
         self._err_objects = list(errores)
+
+        # Badge dinámico en el título del tab
+        n = len(errores)
+        if n > 0:
+            self.notebook.tab(self.tab_errores, text=f"Errores Semánticos ({n})")
+        else:
+            self.notebook.tab(self.tab_errores, text="Errores Semánticos ✓")
 
         if not errores:
             self.err_tree.insert(
@@ -583,6 +636,7 @@ class AplicacionSemantico:
         _, codigo, _ = PROGRAMAS_SEM[index]
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", codigo)
+        self._update_line_numbers()
         for i, btn in enumerate(self._preset_buttons):
             btn.configure(
                 bg=_ACENTO_E4_BG if i == index else T["surface"],
@@ -613,6 +667,8 @@ class AplicacionSemantico:
         self.tree_widget.delete(*self.tree_widget.get_children())
         self._set_widget(self.err_detail, "")
         self._err_objects = []
+        self._clear_error_highlights()
+        self.notebook.tab(self.tab_errores, text="Errores Semánticos")
         if not keep_status:
             self._set_status("Listo para analizar.", ok=None)
             self._set_widget(self.txt_resumen, "")
@@ -627,6 +683,69 @@ class AplicacionSemantico:
             bg = T["error_bg"]
             fg = T["error"]
         self.lbl_status.configure(text=texto, bg=bg, fg=fg)
+
+    # ── Gutter de números de línea ────────────────────────────────────────────
+
+    def _scroll_editor_y(self, *args) -> None:
+        """Scrollbar → mueve el editor y el gutter al mismo tiempo."""
+        self.editor.yview(*args)
+        self.line_numbers.yview(*args)
+
+    def _sync_scroll_y(self, *args) -> None:
+        """El editor notifica su posición → actualiza scrollbar y sincroniza gutter."""
+        self._sb_editor_y.set(*args)
+        self.line_numbers.yview_moveto(args[0])
+
+    def _sync_ln_view(self) -> None:
+        """Sincroniza la vista del gutter tras eventos de MouseWheel."""
+        self.line_numbers.yview_moveto(self.editor.yview()[0])
+
+    def _update_line_numbers(self) -> None:
+        """Redibuja el gutter con los números de línea actuales."""
+        line_count = int(self.editor.index("end-1c").split(".")[0])
+        numbers = "\n".join(f"{i:>3}" for i in range(1, line_count + 1))
+        self.line_numbers.configure(state="normal")
+        self.line_numbers.delete("1.0", "end")
+        self.line_numbers.insert("1.0", numbers)
+        self.line_numbers.configure(state="disabled")
+        self.line_numbers.yview_moveto(self.editor.yview()[0])
+
+    def _highlight_active_line(self) -> None:
+        """Resalta con fondo suave la línea donde está el cursor."""
+        self.editor.tag_remove("active_line", "1.0", "end")
+        line = self.editor.index("insert").split(".")[0]
+        self.editor.tag_add("active_line", f"{line}.0", f"{line}.end+1c")
+
+    def _highlight_errors(self, errores) -> None:
+        """Pinta con subrayado rojo los lexemas con error en el editor
+        y marca en rojo el número de línea correspondiente en el gutter."""
+        self._clear_error_highlights()
+        filas_con_error: set[int] = set()
+        for err in errores:
+            try:
+                fila   = err.fila
+                col0   = max(err.columna - 1, 0)
+                lexema = getattr(err, "lexema", "")
+                largo  = max(len(lexema), 1)
+                self.editor.tag_add("error_hl", f"{fila}.{col0}", f"{fila}.{col0 + largo}")
+                filas_con_error.add(fila)
+            except Exception:
+                pass
+        # Pintar en rojo el número de línea en el gutter
+        self.line_numbers.configure(state="normal")
+        for fila in filas_con_error:
+            try:
+                self.line_numbers.tag_add("error_ln", f"{fila}.0", f"{fila}.end")
+            except Exception:
+                pass
+        self.line_numbers.configure(state="disabled")
+
+    def _clear_error_highlights(self) -> None:
+        """Elimina todos los highlights de error del editor y del gutter."""
+        self.editor.tag_remove("error_hl", "1.0", "end")
+        self.line_numbers.configure(state="normal")
+        self.line_numbers.tag_remove("error_ln", "1.0", "end")
+        self.line_numbers.configure(state="disabled")
 
     def _set_widget(self, widget: tk.Text, contenido: str) -> None:
         widget.configure(state="normal")
