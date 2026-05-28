@@ -1,4 +1,10 @@
-# No se requieren librerías externas para la Entrega 2.
-# La interfaz usa Tkinter, incluido en Python estándar.
-# En Linux, si falta Tkinter:
-#   sudo apt install python3-tk
+# Interfaz gráfica — incluida en Python estándar (no requiere instalación)
+# En Linux, si falta Tkinter:  sudo apt install python3-tk
+
+# ── Bonus Entrega 4: Integración de IA (Modalidades A y C) ───────────────────
+# Requerido para enriquecimiento de errores semánticos con Claude:
+anthropic>=0.40.0
+
+# Configurar la clave de API antes de ejecutar:
+#   Windows PowerShell:  $env:ANTHROPIC_API_KEY = "sk-ant-..."
+#   Linux / macOS:       export ANTHROPIC_API_KEY="sk-ant-..."
