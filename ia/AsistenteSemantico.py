@@ -106,6 +106,8 @@ def _llamar_groq(
         headers={
             "Content-Type":  "application/json",
             "Authorization": f"Bearer {api_key}",
+            "User-Agent":    "python-httpx/0.27.0",
+            "Accept":        "application/json",
         },
         method="POST",
     )
