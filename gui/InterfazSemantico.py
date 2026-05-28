@@ -3,6 +3,7 @@ InterfazSemantico.py — Interfaz gráfica del analizador semántico
 Compiladores — Entrega 4 | Análisis semántico + Tabla de símbolos
 """
 
+import re
 import threading
 import tkinter as tk
 from tkinter import ttk, font as tkfont
@@ -763,8 +764,8 @@ class AplicacionSemantico:
         # ── Ventana modal ─────────────────────────────────────────────────
         win = tk.Toplevel(self.root)
         win.title("Asistente IA — Analizador Semántico")
-        win.geometry("700x520")
-        win.minsize(520, 380)
+        win.geometry("920x600")
+        win.minsize(640, 420)
         win.configure(bg=T["surface"])
         win.transient(self.root)
         win.grab_set()
@@ -781,7 +782,7 @@ class AplicacionSemantico:
         tk.Label(
             hdr, text=error.mensaje,
             bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui,
-            wraplength=660, justify="left",
+            wraplength=880, justify="left",
         ).pack(anchor="w", padx=12, pady=(0, 8))
 
         # Sugerencia IA si ya está disponible
@@ -792,7 +793,7 @@ class AplicacionSemantico:
                 sug,
                 text="Sugerencia IA:  " + error.sugerencia[4:].strip(),
                 bg=T["ok_bg"], fg=T["ok"], font=self.f_ui,
-                wraplength=660, justify="left",
+                wraplength=880, justify="left",
             ).pack(anchor="w", padx=12, pady=6)
 
         tk.Frame(win, bg=T["border"], height=1).pack(fill="x")
@@ -809,6 +810,40 @@ class AplicacionSemantico:
             padx=10, pady=8,
         )
         txt_resp.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+
+        # Tags para resaltado de código en la respuesta
+        txt_resp.tag_configure(
+            "bloque_codigo",
+            font=self.f_code,
+            background="#1E2A3A", foreground="#E2E8F0",
+            lmargin1=8, lmargin2=8,
+        )
+        txt_resp.tag_configure(
+            "codigo_inline",
+            font=self.f_mono,
+            background="#F1F5F9", foreground="#B91C1C",
+        )
+
+        def _renderizar_respuesta(txt: tk.Text, texto: str) -> None:
+            """Inserta la respuesta aplicando resaltado a bloques e inline code."""
+            txt.configure(state="normal")
+            txt.delete("1.0", "end")
+            # Dividir por bloques ```...```
+            partes = re.split(r"```(?:[a-zA-Z]*\n?)?", texto)
+            en_bloque = False
+            for parte in partes:
+                if en_bloque:
+                    # Contenido de bloque de código
+                    txt.insert("end", parte.strip("\n") + "\n", "bloque_codigo")
+                else:
+                    # Texto normal: buscar inline `code`
+                    segmentos = re.split(r"`([^`]+)`", parte)
+                    for j, seg in enumerate(segmentos):
+                        tag = "codigo_inline" if j % 2 == 1 else ""
+                        txt.insert("end", seg, tag)
+                en_bloque = not en_bloque
+            txt.configure(state="disabled")
+
         self._set_widget(txt_resp, "Escribe tu pregunta abajo y pulsa Preguntar.")
 
         # Entrada + botón
@@ -827,13 +862,14 @@ class AplicacionSemantico:
             pregunta = entry.get().strip()
             if not pregunta:
                 return
+            entry.delete(0, "end")          # limpiar caja tras enviar
             btn_enviar.configure(state="disabled")
             self._set_widget(txt_resp, "Consultando IA…")
 
             def _worker() -> None:
                 _, resp = _consultar_error_ia(codigo, error, pregunta)
                 win.after(0, lambda: (
-                    self._set_widget(txt_resp, resp),
+                    _renderizar_respuesta(txt_resp, resp),
                     btn_enviar.configure(state="normal"),
                 ))
 

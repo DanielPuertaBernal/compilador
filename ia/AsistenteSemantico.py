@@ -74,11 +74,37 @@ _SISTEMA_ENRIQUECER = (
     "Sin texto adicional fuera del JSON."
 )
 
+_GRAMATICA_RESUMEN = """
+Sintaxis del lenguaje fuente (palabras clave en español):
+  Declaración de variable : var nombre : tipo = expresion
+  Declaración de función  : funcion nombre(param: tipo): tipo_retorno
+                              bloque
+                            fin_funcion
+  Ciclo para              : para i desde expr hasta expr paso expr hacer
+                              bloque
+                            fin_para
+  Condicional             : si expr entonces bloque sino bloque fin_si
+  Ciclo mientras          : mientras expr hacer bloque fin_mientras
+  Clase                   : clase Nombre extiende Base
+                              modificador miembro
+                            fin_clase
+  Retorno                 : retornar expr
+  Tipos primitivos        : entero  real  cadena  booleano
+  Literales               : verdadero  falso  nulo
+  Operadores aritméticos  : + - * / % ^
+  Operadores comparación  : == != < > <= >=
+  Operadores lógicos      : y  o  no
+  Instancia de clase      : nuevo NombreClase(args)
+  Acceso a miembro        : este.atributo   objeto.metodo(args)
+"""
+
 _SISTEMA_CONSULTAR = (
     "Eres un asistente de compiladores especializado en análisis semántico. "
     "El compilador procesa código con palabras clave en español que compila a TypeScript. "
     "Responde de forma clara, concisa y en español las preguntas sobre errores semánticos. "
-    "Incluye siempre: la causa raíz del error y el paso exacto para corregirlo."
+    "Incluye siempre: la causa raíz del error y el paso exacto para corregirlo. "
+    "Cuando muestres ejemplos de código, usa SIEMPRE la sintaxis exacta del lenguaje fuente "
+    "(no TypeScript ni Python). La sintaxis del lenguaje es:\n" + _GRAMATICA_RESUMEN
 )
 
 
