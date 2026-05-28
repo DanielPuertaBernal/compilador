@@ -2,19 +2,18 @@
 AsistenteSemantico.py — Integración de IA para el análisis semántico
 Compiladores — Entrega 4 | Bonus Modalidad A + C
 
-Usa la API gratuita de Google Gemini para enriquecer los errores semánticos
+Usa la API gratuita de Groq (LLaMA 3) para enriquecer los errores semánticos
 detectados por las reglas clásicas del compilador.
 
 Modalidad A: tras el análisis, enriquece cada ErrorSemantico.sugerencia
-             con una explicación contextual generada por Gemini.
+             con una explicación contextual generada por el modelo.
 Modalidad C: responde preguntas del usuario sobre un error específico.
 
-Obtener clave gratuita (solo requiere cuenta de Google, sin tarjeta):
-    https://aistudio.google.com/apikey  →  "Create API key"
+Obtener clave gratuita (sin tarjeta de crédito):
+    https://console.groq.com  →  "API Keys" → "Create API Key"
 
-Configurar antes de ejecutar:
-    Windows PowerShell:  $env:GEMINI_API_KEY = "AIza..."
-    Linux / macOS:       export GEMINI_API_KEY="AIza..."
+Agregar al archivo .env en la raíz del proyecto:
+    GROQ_API_KEY=gsk_...
 
 Sin dependencias externas — usa urllib de la librería estándar de Python.
 """
@@ -58,11 +57,8 @@ _ENV = _leer_dotenv()   # se carga una vez al importar el módulo
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-_MODELO  = "gemini-2.0-flash-lite"   # gratis: 30 req/min, sin límite diario práctico
-_URL_BASE = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{_MODELO}:generateContent?key="
-)
+_MODELO      = "llama-3.1-8b-instant"                             # gratis en Groq
+_URL_GROQ    = "https://api.groq.com/openai/v1/chat/completions"  # compatible con OpenAI
 _TIMEOUT_SEG = 30
 
 # ── Prompts de sistema ────────────────────────────────────────────────────────
@@ -86,39 +82,37 @@ _SISTEMA_CONSULTAR = (
 )
 
 
-# ── Comunicación con Gemini ───────────────────────────────────────────────────
+# ── Comunicación con Groq ─────────────────────────────────────────────────────
 
-def _llamar_gemini(
+def _llamar_groq(
     sistema: str,
     prompt: str,
     api_key: str,
 ) -> Tuple[bool, str]:
-    """Llama a la API de Gemini y retorna (exito, texto_respuesta)."""
+    """Llama a la API de Groq (compatible con OpenAI) y retorna (exito, texto)."""
     cuerpo = json.dumps({
-        "systemInstruction": {
-            "parts": [{"text": sistema}]
-        },
-        "contents": [
-            {"role": "user", "parts": [{"text": prompt}]}
+        "model": _MODELO,
+        "messages": [
+            {"role": "system", "content": sistema},
+            {"role": "user",   "content": prompt},
         ],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 1024,
-        },
+        "temperature": 0.2,
+        "max_tokens":  1024,
     }).encode("utf-8")
 
     req = urllib.request.Request(
-        _URL_BASE + api_key,
+        _URL_GROQ,
         data=cuerpo,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type":  "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
         method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT_SEG) as resp:
             datos = json.loads(resp.read().decode("utf-8"))
-            texto = (
-                datos["candidates"][0]["content"]["parts"][0]["text"].strip()
-            )
+            texto = datos["choices"][0]["message"]["content"].strip()
             return True, texto
     except urllib.error.HTTPError as e:
         detalle = e.read().decode("utf-8", errors="replace")
@@ -126,9 +120,9 @@ def _llamar_gemini(
             msg_api = json.loads(detalle).get("error", {}).get("message", detalle)
         except Exception:
             msg_api = detalle[:120]
-        return False, f"Error Gemini API: {msg_api}"
+        return False, f"Error Groq API: {msg_api}"
     except urllib.error.URLError as e:
-        return False, f"Sin conexión a internet o URL inválida: {e.reason}"
+        return False, f"Sin conexión a internet: {e.reason}"
     except Exception as exc:
         return False, f"Error inesperado: {exc}"
 
@@ -149,8 +143,8 @@ def _obtener_key(api_key: Optional[str]) -> Optional[str]:
     """Retorna la clave de API: parámetro → .env → variable de entorno."""
     return (
         api_key
-        or _ENV.get("GEMINI_API_KEY")
-        or os.environ.get("GEMINI_API_KEY")
+        or _ENV.get("GROQ_API_KEY")
+        or os.environ.get("GROQ_API_KEY")
         or None
     )
 
@@ -179,7 +173,8 @@ def enriquecer_errores(
     if not key:
         return (
             False,
-            "Configura GEMINI_API_KEY. Clave gratuita en: aistudio.google.com/apikey",
+            "Configura GROQ_API_KEY en el archivo .env. "
+            "Clave gratuita (sin tarjeta) en: console.groq.com",
         )
 
     errores_desc = "\n".join(
@@ -192,7 +187,7 @@ def enriquecer_errores(
         f"Errores semánticos detectados por el compilador:\n{errores_desc}"
     )
 
-    exito, texto = _llamar_gemini(_SISTEMA_ENRIQUECER, prompt, key)
+    exito, texto = _llamar_groq(_SISTEMA_ENRIQUECER, prompt, key)
     if not exito:
         return False, texto
 
@@ -226,8 +221,8 @@ def consultar_error(
     if not key:
         return (
             False,
-            "Configura GEMINI_API_KEY.\n"
-            "Clave gratuita (sin tarjeta) en: aistudio.google.com/apikey",
+            "Configura GROQ_API_KEY en el archivo .env.\n"
+            "Clave gratuita (sin tarjeta) en: console.groq.com",
         )
 
     contexto = (
@@ -241,4 +236,4 @@ def consultar_error(
         f"  Sugerencia actual: {error.sugerencia or '—'}\n\n"
         f"Pregunta del usuario: {pregunta}"
     )
-    return _llamar_gemini(_SISTEMA_CONSULTAR, contexto, key)
+    return _llamar_groq(_SISTEMA_CONSULTAR, contexto, key)
