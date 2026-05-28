@@ -426,65 +426,27 @@ class AplicacionSemantico:
             bg=T["surface"], fg=T["text_dim"], font=self.f_ui_b,
         ).pack(anchor="w")
         self.err_detail = tk.Text(
-            detail, font=self.f_err, wrap="word", height=5,
+            detail, font=self.f_err, wrap="word", height=8,
             relief="flat", bg="#FFF7F7", fg=T["text"],
         )
         self.err_detail.pack(fill="both", expand=True)
 
-        # ── Bonus Modalidad C: Asistente IA ──────────────────────────────
-        ia_frame = tk.Frame(self.tab_errores, bg=T["surface"])
-        ia_frame.pack(fill="x", padx=8, pady=(4, 8))
+        # ── Bonus: barra inferior con estado IA + botón ───────────────────
+        ia_bar = tk.Frame(self.tab_errores, bg=_ACENTO_E4_BG)
+        ia_bar.pack(fill="x", padx=8, pady=(0, 8))
 
-        ia_hdr = tk.Frame(ia_frame, bg=_ACENTO_E4_BG)
-        ia_hdr.pack(fill="x")
-        tk.Label(
-            ia_hdr,
-            text="✦ Asistente IA — consulta sobre el error seleccionado",
-            bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui_b,
-        ).pack(side="left", padx=10, pady=5)
         self.lbl_ia_estado = tk.Label(
-            ia_hdr, text="(requiere ANTHROPIC_API_KEY)" if not _IA_DISPONIBLE else "",
+            ia_bar, text="",
             bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui,
         )
-        self.lbl_ia_estado.pack(side="right", padx=10, pady=5)
+        self.lbl_ia_estado.pack(side="left", padx=10, pady=5)
 
-        ia_input = tk.Frame(ia_frame, bg=T["surface"])
-        ia_input.pack(fill="x", pady=(4, 0))
-        self.ia_entry = tk.Entry(
-            ia_input, font=self.f_ui,
-            bg=T["surface2"], fg=T["text_dim"],
-            relief="flat", bd=1,
-        )
-        _placeholder = "¿Por qué ocurre este error y cómo lo corrijo?"
-        self.ia_entry.insert(0, _placeholder)
-        self.ia_entry.bind("<FocusIn>",  lambda _e: (
-            self.ia_entry.delete(0, "end") or
-            self.ia_entry.configure(fg=T["text"])
-        ) if self.ia_entry.get() == _placeholder else None)
-        self.ia_entry.bind("<FocusOut>", lambda _e: (
-            self.ia_entry.insert(0, _placeholder) or
-            self.ia_entry.configure(fg=T["text_dim"])
-        ) if not self.ia_entry.get() else None)
-        self.ia_entry.bind("<Return>", lambda _e: self._consultar_ia())
-        self.ia_entry.pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=4)
-
-        self.btn_ia = tk.Button(
-            ia_input, text="Preguntar",
+        tk.Button(
+            ia_bar, text="✦ Consultar Asistente IA",
             bg=_ACENTO_E4, fg=T["text_white"], font=self.f_ui_b,
-            relief="flat", padx=10, pady=4, cursor="hand2",
-            command=self._consultar_ia,
-        )
-        self.btn_ia.pack(side="right")
-
-        self.ia_response = tk.Text(
-            ia_frame, font=self.f_ui, wrap="word", height=4,
-            relief="flat", bg="#FFFBEB", fg=T["text"],
-        )
-        self.ia_response.pack(fill="both", expand=True, pady=(4, 0))
-        self._set_widget(
-            self.ia_response,
-            "Selecciona un error de la tabla y haz una pregunta al asistente.",
-        )
+            relief="flat", padx=12, pady=4, cursor="hand2",
+            command=self._abrir_chat_ia,
+        ).pack(side="right", padx=8, pady=4)
 
     # ── Pestaña Árbol ─────────────────────────────────────────────────────────
 
@@ -670,10 +632,6 @@ class AplicacionSemantico:
         if idx < len(self._err_objects):
             err = self._err_objects[idx]
             self._set_widget(self.err_detail, err.FormatearReporte())
-            self._set_widget(
-                self.ia_response,
-                "Escribe tu pregunta arriba y pulsa Preguntar.",
-            )
 
     # ── Árbol sintáctico ──────────────────────────────────────────────────────
 
@@ -743,10 +701,6 @@ class AplicacionSemantico:
         self._clear_error_highlights()
         self.notebook.tab(self.tab_errores, text="Errores Semánticos")
         self.lbl_ia_estado.configure(text="")
-        self._set_widget(
-            self.ia_response,
-            "Selecciona un error de la tabla y haz una pregunta al asistente.",
-        )
         if not keep_status:
             self._set_status("Listo para analizar.", ok=None)
             self._set_widget(self.txt_resumen, "")
@@ -795,44 +749,105 @@ class AplicacionSemantico:
                         self._err_objects[idx].FormatearReporte(),
                     )
 
-    def _consultar_ia(self) -> None:
-        """Modalidad C: responde una pregunta del usuario sobre el error seleccionado."""
-        if not _IA_DISPONIBLE:
-            self._set_widget(
-                self.ia_response,
-                "Librería 'anthropic' no instalada.\n"
-                "Ejecuta en la terminal:  pip install anthropic\n"
-                "Luego configura:  ANTHROPIC_API_KEY=<tu clave>",
-            )
-            return
+    def _abrir_chat_ia(self) -> None:
+        """Modalidad C: abre ventana emergente para consultar al asistente IA."""
         sel = self.err_tree.selection()
         if not sel:
-            self._set_widget(self.ia_response, "Selecciona primero un error de la tabla.")
             return
         idx = self.err_tree.index(sel[0])
         if idx >= len(self._err_objects):
             return
-
-        error   = self._err_objects[idx]
-        pregunta = self.ia_entry.get().strip()
-        placeholder = "¿Por qué ocurre este error y cómo lo corrijo?"
-        if not pregunta or pregunta == placeholder:
-            pregunta = placeholder
-
-        self._set_widget(self.ia_response, "Consultando IA…")
-        self.btn_ia.configure(state="disabled")
+        error  = self._err_objects[idx]
         codigo = self._codigo_actual
 
-        def _worker() -> None:
-            exito, respuesta = _consultar_error_ia(codigo, error, pregunta)
-            self.root.after(0, lambda: self._on_respuesta_ia(exito, respuesta))
+        # ── Ventana modal ─────────────────────────────────────────────────
+        win = tk.Toplevel(self.root)
+        win.title("Asistente IA — Analizador Semántico")
+        win.geometry("700x520")
+        win.minsize(520, 380)
+        win.configure(bg=T["surface"])
+        win.transient(self.root)
+        win.grab_set()
 
-        threading.Thread(target=_worker, daemon=True).start()
+        # Cabecera con contexto del error
+        hdr = tk.Frame(win, bg=_ACENTO_E4_BG)
+        hdr.pack(fill="x")
+        tk.Label(
+            hdr,
+            text=f"✦ Error seleccionado — '{error.lexema}'  ·  {error.tipo_error}"
+                 f"  ·  L{error.fila}:C{error.columna}",
+            bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui_b,
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        tk.Label(
+            hdr, text=error.mensaje,
+            bg=_ACENTO_E4_BG, fg=_ACENTO_E4_FG, font=self.f_ui,
+            wraplength=660, justify="left",
+        ).pack(anchor="w", padx=12, pady=(0, 8))
 
-    def _on_respuesta_ia(self, exito: bool, respuesta: str) -> None:
-        """Callback: muestra la respuesta del asistente en la GUI."""
-        self.btn_ia.configure(state="normal")
-        self._set_widget(self.ia_response, respuesta)
+        # Sugerencia IA si ya está disponible
+        if error.sugerencia.startswith("[IA]"):
+            sug = tk.Frame(win, bg=T["ok_bg"])
+            sug.pack(fill="x")
+            tk.Label(
+                sug,
+                text="Sugerencia IA:  " + error.sugerencia[4:].strip(),
+                bg=T["ok_bg"], fg=T["ok"], font=self.f_ui,
+                wraplength=660, justify="left",
+            ).pack(anchor="w", padx=12, pady=6)
+
+        tk.Frame(win, bg=T["border"], height=1).pack(fill="x")
+
+        # Área de respuesta
+        tk.Label(
+            win, text="Respuesta del asistente:",
+            bg=T["surface"], fg=T["text_dim"], font=self.f_ui_b,
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+
+        txt_resp = tk.Text(
+            win, font=self.f_ui, wrap="word",
+            relief="flat", bg=T["surface2"], fg=T["text"],
+            padx=10, pady=8,
+        )
+        txt_resp.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+        self._set_widget(txt_resp, "Escribe tu pregunta abajo y pulsa Preguntar.")
+
+        # Entrada + botón
+        bottom = tk.Frame(win, bg=T["surface"])
+        bottom.pack(fill="x", padx=12, pady=(0, 12))
+
+        entry = tk.Entry(
+            bottom, font=self.f_ui,
+            bg=T["surface2"], fg=T["text"],
+            relief="flat", bd=1,
+        )
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=6)
+        entry.focus_set()
+
+        def _enviar() -> None:
+            pregunta = entry.get().strip()
+            if not pregunta:
+                return
+            btn_enviar.configure(state="disabled")
+            self._set_widget(txt_resp, "Consultando IA…")
+
+            def _worker() -> None:
+                _, resp = _consultar_error_ia(codigo, error, pregunta)
+                win.after(0, lambda: (
+                    self._set_widget(txt_resp, resp),
+                    btn_enviar.configure(state="normal"),
+                ))
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+        entry.bind("<Return>", lambda _e: _enviar())
+
+        btn_enviar = tk.Button(
+            bottom, text="Preguntar",
+            bg=_ACENTO_E4, fg=T["text_white"], font=self.f_ui_b,
+            relief="flat", padx=14, pady=6, cursor="hand2",
+            command=_enviar,
+        )
+        btn_enviar.pack(side="right")
 
     # ── Gutter de números de línea ────────────────────────────────────────────
 
