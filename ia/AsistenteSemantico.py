@@ -2,84 +2,109 @@
 AsistenteSemantico.py — Integración de IA para el análisis semántico
 Compiladores — Entrega 4 | Bonus Modalidad A + C
 
-Modalidad A: enriquece los errores detectados por las reglas clásicas
-             con sugerencias contextualizadas generadas por Claude.
-Modalidad C: responde preguntas del usuario sobre un error semántico
-             específico, manteniendo el contexto del programa fuente.
+Usa la API gratuita de Google Gemini para enriquecer los errores semánticos
+detectados por las reglas clásicas del compilador.
 
-Requiere:
-    pip install anthropic
-    Variable de entorno ANTHROPIC_API_KEY con la clave de API.
+Modalidad A: tras el análisis, enriquece cada ErrorSemantico.sugerencia
+             con una explicación contextual generada por Gemini.
+Modalidad C: responde preguntas del usuario sobre un error específico.
 
-Uso:
-    from ia.AsistenteSemantico import enriquecer_errores, consultar_error
+Obtener clave gratuita (solo requiere cuenta de Google, sin tarjeta):
+    https://aistudio.google.com/apikey  →  "Create API key"
 
-    # Modalidad A — enriquecimiento automático tras el análisis
-    exito, msg = enriquecer_errores(codigo, lista_de_errores)
+Configurar antes de ejecutar:
+    Windows PowerShell:  $env:GEMINI_API_KEY = "AIza..."
+    Linux / macOS:       export GEMINI_API_KEY="AIza..."
 
-    # Modalidad C — asistente interactivo
-    exito, respuesta = consultar_error(codigo, error_seleccionado, pregunta)
+Sin dependencias externas — usa urllib de la librería estándar de Python.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import urllib.request
+import urllib.error
 from typing import List, Optional, Tuple
 
 from semantico.ErrorSemantico import ErrorSemantico
 
 
-# ── Configuración del modelo ──────────────────────────────────────────────────
+# ── Configuración ─────────────────────────────────────────────────────────────
 
-_MODELO = "claude-haiku-4-5-20251001"   # rápido y económico para la demo
+_MODELO  = "gemini-1.5-flash"   # gratis: 15 req/min, 1 M tokens/día
+_URL_BASE = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    f"{_MODELO}:generateContent?key="
+)
+_TIMEOUT_SEG = 30
 
 # ── Prompts de sistema ────────────────────────────────────────────────────────
 
-_SISTEMA_ENRIQUECER = """\
-Eres un asistente de compiladores especializado en análisis semántico.
-El compilador procesa código en un lenguaje imperativo/OOP con palabras clave
-en español y lo traduce a TypeScript.
+_SISTEMA_ENRIQUECER = (
+    "Eres un asistente de compiladores especializado en análisis semántico. "
+    "El compilador procesa código en un lenguaje imperativo/OOP con palabras "
+    "clave en español y lo traduce a TypeScript. "
+    "Para cada error semántico detectado por las reglas clásicas del compilador, "
+    "genera una sugerencia de corrección CONCISA (máximo 2 oraciones) en español "
+    "que explique POR QUÉ ocurre el error y CÓMO corregirlo exactamente. "
+    'Responde ÚNICAMENTE con JSON válido: {"sugerencias": ["sugerencia 1", ...]} '
+    "Sin texto adicional fuera del JSON."
+)
 
-Se te entregará el código fuente y los errores semánticos que el compilador
-detectó aplicando sus reglas clásicas (tabla de símbolos, verificación de tipos,
-comprobación de declaraciones, etc.).
-
-Para cada error, genera una sugerencia de corrección CONCISA (máximo 2 oraciones)
-en español que explique POR QUÉ ocurre el error y CÓMO corregirlo exactamente.
-
-Responde ÚNICAMENTE con un objeto JSON con este formato exacto:
-{"sugerencias": ["sugerencia para error 1", "sugerencia para error 2", ...]}
-
-Sin texto adicional fuera del JSON."""
-
-_SISTEMA_CONSULTAR = """\
-Eres un asistente de compiladores especializado en análisis semántico.
-El compilador procesa código en un lenguaje imperativo/OOP con palabras clave
-en español y lo traduce a TypeScript.
-
-Recibes el código fuente del programa y los detalles de un error semántico
-específico detectado por las reglas clásicas del compilador.
-
-Responde de forma clara, concisa y en español las preguntas del usuario sobre
-el error. Incluye siempre: la causa raíz del error y el paso exacto para corregirlo."""
+_SISTEMA_CONSULTAR = (
+    "Eres un asistente de compiladores especializado en análisis semántico. "
+    "El compilador procesa código con palabras clave en español que compila a TypeScript. "
+    "Responde de forma clara, concisa y en español las preguntas sobre errores semánticos. "
+    "Incluye siempre: la causa raíz del error y el paso exacto para corregirlo."
+)
 
 
-# ── Helpers internos ──────────────────────────────────────────────────────────
+# ── Comunicación con Gemini ───────────────────────────────────────────────────
 
-def _crear_cliente(api_key: Optional[str] = None):
-    """
-    Crea y retorna un cliente Anthropic, o None si no está disponible.
-    Busca la clave en: parámetro → ANTHROPIC_API_KEY → vacío (falla).
-    """
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-    if not key:
-        return None
+def _llamar_gemini(
+    sistema: str,
+    prompt: str,
+    api_key: str,
+) -> Tuple[bool, str]:
+    """Llama a la API de Gemini y retorna (exito, texto_respuesta)."""
+    cuerpo = json.dumps({
+        "systemInstruction": {
+            "parts": [{"text": sistema}]
+        },
+        "contents": [
+            {"role": "user", "parts": [{"text": prompt}]}
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 1024,
+        },
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        _URL_BASE + api_key,
+        data=cuerpo,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     try:
-        import anthropic
-        return anthropic.Anthropic(api_key=key)
-    except ImportError:
-        return None
+        with urllib.request.urlopen(req, timeout=_TIMEOUT_SEG) as resp:
+            datos = json.loads(resp.read().decode("utf-8"))
+            texto = (
+                datos["candidates"][0]["content"]["parts"][0]["text"].strip()
+            )
+            return True, texto
+    except urllib.error.HTTPError as e:
+        detalle = e.read().decode("utf-8", errors="replace")
+        try:
+            msg_api = json.loads(detalle).get("error", {}).get("message", detalle)
+        except Exception:
+            msg_api = detalle[:120]
+        return False, f"Error Gemini API: {msg_api}"
+    except urllib.error.URLError as e:
+        return False, f"Sin conexión a internet o URL inválida: {e.reason}"
+    except Exception as exc:
+        return False, f"Error inesperado: {exc}"
 
 
 def _extraer_json(texto: str) -> Optional[dict]:
@@ -94,6 +119,11 @@ def _extraer_json(texto: str) -> Optional[dict]:
         return None
 
 
+def _obtener_key(api_key: Optional[str]) -> Optional[str]:
+    """Retorna la clave de API: parámetro → variable de entorno."""
+    return api_key or os.environ.get("GEMINI_API_KEY", "") or None
+
+
 # ── API pública ───────────────────────────────────────────────────────────────
 
 def enriquecer_errores(
@@ -102,36 +132,25 @@ def enriquecer_errores(
     api_key: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
-    Modalidad A — enriquece las sugerencias de los errores con IA.
+    Modalidad A — enriquece las sugerencias de los errores con Gemini.
 
-    Llama a la API de Anthropic/Claude con el código fuente y los errores
-    ya detectados por las reglas clásicas, y reemplaza cada
-    ErrorSemantico.sugerencia con la versión contextualizada generada por el modelo.
+    Opera DESPUÉS de que el analizador semántico detectó los errores con
+    sus reglas clásicas. Reemplaza ErrorSemantico.sugerencia con texto
+    contextualizado generado por el modelo.
 
-    No reemplaza las reglas clásicas: opera DESPUÉS de que el analizador
-    semántico terminó su trabajo y ya se tienen los errores.
-
-    Parámetros:
-        codigo_fuente — código fuente completo analizado
-        errores       — lista de ErrorSemantico (modificados in-place)
-        api_key       — clave de API (opcional; usa ANTHROPIC_API_KEY si no se pasa)
-
-    Retorna:
-        (True,  mensaje_informativo)  si el enriquecimiento fue exitoso
-        (False, mensaje_de_error)     si falló por cualquier motivo
+    Retorna (True, msg_info) si fue exitoso,
+            (False, msg_error) si faltó la clave o hubo error de red.
     """
     if not errores:
         return True, ""
 
-    cliente = _crear_cliente(api_key)
-    if cliente is None:
+    key = _obtener_key(api_key)
+    if not key:
         return (
             False,
-            "ANTHROPIC_API_KEY no configurada o librería 'anthropic' no instalada."
-            " Ejecuta: pip install anthropic",
+            "Configura GEMINI_API_KEY. Clave gratuita en: aistudio.google.com/apikey",
         )
 
-    # Construir descripción numerada de los errores
     errores_desc = "\n".join(
         f"Error {i + 1} — L{e.fila}:C{e.columna}  "
         f"lexema='{e.lexema}'  regla={e.tipo_error}:\n  {e.mensaje}"
@@ -142,28 +161,22 @@ def enriquecer_errores(
         f"Errores semánticos detectados por el compilador:\n{errores_desc}"
     )
 
-    try:
-        respuesta = cliente.messages.create(
-            model=_MODELO,
-            max_tokens=1024,
-            system=_SISTEMA_ENRIQUECER,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        datos = _extraer_json(respuesta.content[0].text.strip())
-        if datos is None:
-            return False, "La IA devolvió una respuesta en formato inesperado."
+    exito, texto = _llamar_gemini(_SISTEMA_ENRIQUECER, prompt, key)
+    if not exito:
+        return False, texto
 
-        sugerencias: List[str] = datos.get("sugerencias", [])
-        enriquecidos = 0
-        for i, err in enumerate(errores):
-            if i < len(sugerencias) and sugerencias[i]:
-                err.sugerencia = f"[IA] {sugerencias[i]}"
-                enriquecidos += 1
+    datos = _extraer_json(texto)
+    if datos is None:
+        return False, "Gemini no devolvió JSON válido. Reintenta."
 
-        return True, f"✦ {enriquecidos} sugerencia(s) generada(s) por IA"
+    sugerencias: List[str] = datos.get("sugerencias", [])
+    enriquecidos = 0
+    for i, err in enumerate(errores):
+        if i < len(sugerencias) and sugerencias[i]:
+            err.sugerencia = f"[IA] {sugerencias[i]}"
+            enriquecidos += 1
 
-    except Exception as exc:
-        return False, f"Error al consultar la IA: {exc}"
+    return True, f"✦ {enriquecidos} sugerencia(s) generada(s) por Gemini"
 
 
 def consultar_error(
@@ -175,25 +188,15 @@ def consultar_error(
     """
     Modalidad C — responde una pregunta sobre un error semántico específico.
 
-    Actúa como asistente de depuración integrado: el usuario selecciona
-    un error en la GUI y puede preguntar sobre su causa y corrección.
-
-    Parámetros:
-        codigo_fuente — código fuente completo
-        error         — el ErrorSemantico seleccionado por el usuario
-        pregunta      — pregunta en lenguaje natural del usuario
-        api_key       — clave de API (opcional; usa ANTHROPIC_API_KEY si no se pasa)
-
-    Retorna:
-        (True,  texto_respuesta)     si la consulta fue exitosa
-        (False, mensaje_de_error)    si falló
+    Retorna (True, respuesta) si fue exitoso,
+            (False, msg_error) si faltó la clave o hubo error de red.
     """
-    cliente = _crear_cliente(api_key)
-    if cliente is None:
+    key = _obtener_key(api_key)
+    if not key:
         return (
             False,
-            "ANTHROPIC_API_KEY no configurada o librería 'anthropic' no instalada.\n"
-            "Ejecuta: pip install anthropic",
+            "Configura GEMINI_API_KEY.\n"
+            "Clave gratuita (sin tarjeta) en: aistudio.google.com/apikey",
         )
 
     contexto = (
@@ -207,14 +210,4 @@ def consultar_error(
         f"  Sugerencia actual: {error.sugerencia or '—'}\n\n"
         f"Pregunta del usuario: {pregunta}"
     )
-
-    try:
-        respuesta = cliente.messages.create(
-            model=_MODELO,
-            max_tokens=512,
-            system=_SISTEMA_CONSULTAR,
-            messages=[{"role": "user", "content": contexto}],
-        )
-        return True, respuesta.content[0].text.strip()
-    except Exception as exc:
-        return False, f"Error al consultar la IA: {exc}"
+    return _llamar_gemini(_SISTEMA_CONSULTAR, contexto, key)
